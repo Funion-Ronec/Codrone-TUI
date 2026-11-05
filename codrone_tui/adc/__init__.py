@@ -1,9 +1,4 @@
-"""Aerial Drone Competition 2026-27 "Fast Track" support: scoring, match clock, field, routines.
-
-Write user routines with ``from codrone_tui.adc.routine import routine``. The decorator is not
-re-exported here on purpose: a package attribute called ``routine`` would shadow the
-``codrone_tui.adc.routine`` module.
-"""
+# Aerial Drone Competition 2026-27 Fast Track | ts there is scoring, match clock, field, routines.
 
 from .field import Element, FieldConfig, default_field, load_field
 from .match import AttemptResult, MatchController, MatchError
