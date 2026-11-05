@@ -1,0 +1,166 @@
+# ============================================================================
+#  FIELD LAYOUT  -  ESTIMATED PLACEHOLDER POSITIONS, NOT OFFICIAL, NOT MEASURED
+# ============================================================================
+#  What is from the manual (ADC Fast Track Game Manual v1.1, 09/29/2026):
+#    * element SIZES (section 1.5.2): arch opening 60" x 63", keyhole inner
+#      diameter 24", large cube 17" x 17" x 20", landing pad 30" with a 10"
+#      bullseye, tunnel 23.5" x 19", programming mat 96" x 42"
+#    * the SHAPE of the solo field (Figure 3.2.2): two mats end to end up a long
+#      leg, then one more mat turning RIGHT; the drone starts on the 1 ft green
+#      area at the near end; the red arch stands over the start of the pad
+#    * the TUNNEL is flown top to bottom (Figure 3.1.5)
+#  What is NOT official: every x / y below was read off Figure 3.2.2 by eye
+#  (about +-10 cm), every z (crossing height) is a guess because the manual
+#  does not give stand heights, and the mini-keyhole tower position is a rough
+#  guess. The RECF "Game Element Assembly and Field Setup" document, which has
+#  the real measurements, returned HTTP 403 when it was fetched.
+#
+#  The manual (7.3.2) allows element positions to vary by +-3 in (about 7.6 cm)
+#  between fields, so even official numbers would only be a starting point.
+#  MEASURE YOUR OWN FIELD, edit the numbers, then set calibrated = true.
+#  While calibrated = false the TUI warns before every dry-run and flight.
+#
+#  Frame (centimetres): origin = centre of the green first foot, where the drone
+#  starts (3.2.2); +x forward up the long leg, +y left (pilot side), +z up.
+#  heading = direction to travel to score the element, degrees clockwise from
+#            +x (0 = forward, 90 = toward your right / -y, 270 = toward +y).
+#  z       = altitude (cm above the floor) to cross the element at; for the
+#            tunnel it is the height of its TOP opening.
+#  width / height: from the manual (0 = not given). vertical = flown downward.
+#
+#        (top view)        leg 2  ->  blue arch, yellow keyhole, tunnel
+#        +----------------------------------+
+#        |   mini keyhole tower  (y ~ +30)  |   x ~ 420
+#        +--------+--------------------------
+#                 |  large cube               x ~ 255
+#                 |  green keyhole            x ~ 185
+#                 |  landing pad / bullseye   x ~ 85
+#                 |  red arch                 x ~ 50
+#                 |  START (green foot)       x = 0
+# ============================================================================
+
+calibrated = false
+mat_origin = "centre of the green first foot of the programming mat (where the drone starts); +x forward up the long leg, +y left (pilot side), +z up; start heading 0; the field turns RIGHT near the far end"
+notes = "ESTIMATED layout: sizes from the manual (1.5.2), x/y read from its Figure 3.2.2, z guessed. Measure your field and set calibrated = true."
+spiral_order = ["mini_1", "mini_2", "mini_3"]
+
+[elements.red_arch]
+label = "Red arch gate"
+kind = "arch"
+x = 49.0
+y = 0.0
+z = 80.0
+heading = 0.0
+width = 152.4
+height = 160.0
+vertical = false
+
+[elements.green_keyhole]
+label = "Green keyhole gate"
+kind = "keyhole"
+x = 183.0
+y = 0.0
+z = 110.0
+heading = 0.0
+width = 61.0
+height = 61.0
+vertical = false
+
+[elements.large_cube]
+label = "Large cube"
+kind = "cube"
+x = 255.0
+y = 0.0
+z = 25.0
+heading = 0.0
+width = 43.2
+height = 50.8
+vertical = false
+
+[elements.mini_1]
+label = "Mini keyhole #1 (lowest)"
+kind = "mini_keyhole"
+x = 422.0
+y = 30.0
+z = 60.0
+heading = 270.0
+width = 0.0
+height = 0.0
+vertical = false
+
+[elements.mini_2]
+label = "Mini keyhole #2 (middle)"
+kind = "mini_keyhole"
+x = 422.0
+y = 30.0
+z = 100.0
+heading = 270.0
+width = 0.0
+height = 0.0
+vertical = false
+
+[elements.mini_3]
+label = "Mini keyhole #3 (top)"
+kind = "mini_keyhole"
+x = 422.0
+y = 30.0
+z = 140.0
+heading = 270.0
+width = 0.0
+height = 0.0
+vertical = false
+
+[elements.blue_arch]
+label = "Blue arch gate"
+kind = "arch"
+x = 422.0
+y = -96.0
+z = 80.0
+heading = 90.0
+width = 152.4
+height = 160.0
+vertical = false
+
+[elements.yellow_keyhole]
+label = "Yellow keyhole gate"
+kind = "keyhole"
+x = 422.0
+y = -175.0
+z = 120.0
+heading = 90.0
+width = 61.0
+height = 61.0
+vertical = false
+
+[elements.tunnel]
+label = "Tunnel (fly DOWN through it; z = height of its top opening)"
+kind = "tunnel"
+x = 422.0
+y = -254.0
+z = 110.0
+heading = 0.0
+width = 59.7
+height = 48.3
+vertical = true
+
+[elements.landing_pad]
+label = "Landing pad"
+kind = "pad"
+x = 86.0
+y = 0.0
+z = 0.0
+heading = 0.0
+width = 76.2
+height = 0.0
+vertical = false
+
+[elements.bullseye]
+label = "Bullseye (centre ring of the pad)"
+kind = "pad"
+x = 86.0
+y = 0.0
+z = 0.0
+heading = 0.0
+width = 25.4
+height = 0.0
+vertical = false

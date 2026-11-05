@@ -1,0 +1,6 @@
+09:16:15  pair
+09:16:23  help
+09:17:43  status
+09:17:54  takeoff
+09:22:33  land
+09:23:34  exit

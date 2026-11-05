@@ -1,0 +1,7 @@
+09:25:29  takeoff
+09:25:32  pair
+09:25:34  takeoff
+09:25:47  --demo
+09:26:03  flight
+09:26:08  takeoff --demo
+09:26:25  exit

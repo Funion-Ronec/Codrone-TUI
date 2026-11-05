@@ -1,0 +1,21 @@
+﻿# The full package set the original .venv had (kept so nothing is lost). Only textual, codrone_edu,
+# codrone_simulator and pyserial are used by Codrone-TUI; the rest were earlier experiments
+# (PyQt5, pyautogui, pynput, asciimatics, blessed, pytermgui, chess, typer, drone_cli ...).
+# To get one back:  .venv\Scripts\python.exe -m pip install <package>==<version>
+asciimatics==1.15.0
+blessed==1.50.0
+chess==1.11.2
+codrone_edu==2.10
+codrone_simulator==0.2.7
+drone_cli==0.4.1
+pyautogui==0.9.54
+pygetwindow==0.0.9
+pynput==1.8.2
+PyQt5==5.15.11
+pytermgui==7.8.1
+PyWinCtl==0.4.1
+six==1.17.0
+textual==8.2.8
+tkwinterm==0.2.2
+typer==0.27.3
+

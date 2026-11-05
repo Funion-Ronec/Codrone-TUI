@@ -1,0 +1,68 @@
+/* Layout: rovr-style bordered panels arranged like btop's boxes. */
+
+Screen {
+    layout: vertical;
+    background: $background;
+}
+
+#main {
+    height: 1fr;
+}
+
+#sidebar {
+    width: 30;
+}
+
+#console-panel {
+    width: 1fr;
+    min-width: 40;
+}
+
+#telemetry-panel {
+    width: 46;
+}
+
+#bottom {
+    height: 13;
+}
+
+#bottom > Panel {
+    width: 1fr;
+}
+
+#map-panel {
+    width: 2fr;
+}
+
+#score-panel {
+    width: 1fr;
+    min-width: 34;
+}
+
+Footer {
+    background: $surface;
+}
+
+Footer .footer-key--key {
+    color: $accent;
+    text-style: bold;
+}
+
+Tooltip {
+    background: $panel;
+}
+
+OptionList > .option-list--option-highlighted {
+    background: $primary 25%;
+    color: $text;
+    text-style: bold;
+}
+
+OptionList:focus > .option-list--option-highlighted {
+    background: $accent 30%;
+}
+
+RichLog {
+    scrollbar-color: $primary-darken-2;
+    scrollbar-background: $surface;
+}

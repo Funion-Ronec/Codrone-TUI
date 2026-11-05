@@ -1,0 +1,5 @@
+This is currently what I have right now, I want to make a codrone-TUI with UI design taken from https://github.com/nspc911/rovr and btop
+
+Improve it, add feature, and add 2 seperate TUI for Codrone EDU and Codrone Simulator
+    
+Also read the Aerial Drone Competition 26-27 missions and add for the autonomous section and other things as needed

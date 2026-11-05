@@ -1,0 +1,7 @@
+# What Codrone-TUI actually imports. Everything else (numpy, Pillow, colorama, pygments, markdown-it-py ...)
+# arrives as a dependency of these. requirements.lock.txt has the exact full set that was tested.
+textual==8.2.8
+rich==15.0.0
+pyserial==3.5
+codrone_edu==2.10
+codrone_simulator==0.2.7
