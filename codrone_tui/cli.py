@@ -42,6 +42,7 @@ def build_app(kind: str, args: argparse.Namespace):
         demo=demo,
         theme=args.theme,
         field_path=Path(args.field) if args.field else None,
+        command_log=False if args.no_log else None,
     )
 
 
@@ -53,6 +54,7 @@ def parse_args(kind: str, argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--demo", action="store_true", help="use a mock drone (no hardware, nothing flies)")
     ap.add_argument("--theme", help="start theme, e.g. btop, catppuccin-mocha, tokyo-night")
     ap.add_argument("--field", help="path to a field.toml (ADC field layout)")
+    ap.add_argument("--no-log", action="store_true", help="do not write typed commands to logs/")
     if kind == "sim":
         ap.add_argument("--no-verify", action="store_true",
                         help="do not probe the simulator on connect (use if it never answers range queries)")

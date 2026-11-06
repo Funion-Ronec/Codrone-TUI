@@ -32,6 +32,7 @@ from .commands import Host, Shell
 from .config import PROJECT_ROOT, load_config
 from .screens import ConfirmScreen, HelpScreen
 from .widgets.graph import palette
+from .widgets.pilot import PilotPanel
 from .widgets.score import ScorePanel
 from .widgets.panels import (
     CmdInput,
@@ -65,11 +66,12 @@ CYCLE_AFTER_OWN = ["btop", "catppuccin-mocha", "tokyo-night", "gruvbox", "nord",
 PANELS = {
     "console": ("console-panel", "1"), "sidebar": ("sidebar", "2"), "telemetry": ("telemetry-panel", "3"),
     "processes": ("proc-panel", "4"), "map": ("map-panel", "5"), "score": ("score-panel", "6"),
-    "meta": ("meta-panel", "7"),
+    "meta": ("meta-panel", "7"), "pilot": ("pilot-panel", "8"),
 }
 LAYOUTS = {
-    "full": {"console", "sidebar", "telemetry", "processes", "map", "score", "meta"},
+    "full": {"console", "sidebar", "telemetry", "processes", "map", "score", "meta", "pilot"},
     "flight": {"console", "telemetry", "processes", "map"},
+    "pilot": {"console", "telemetry", "map", "pilot"},
     "mission": {"console", "processes", "map", "score"},
     "minimal": {"console", "telemetry"},
     "focus": {"console"},
@@ -163,6 +165,7 @@ class CodroneApp(App):
         Binding("5", "toggle('map')", "", show=False),
         Binding("6", "toggle('score')", "", show=False),
         Binding("7", "toggle('meta')", "", show=False),
+        Binding("8", "toggle('pilot')", "", show=False),
         Binding("p", "cycle_layout", "layout"),
         Binding("t", "cycle_theme", "theme"),
         Binding("question_mark", "help", "help", key_display="?"),
@@ -179,6 +182,7 @@ class CodroneApp(App):
         demo: bool = False,
         theme: str | None = None,
         field_path: Path | None = None,
+        command_log: bool | None = None,
     ) -> None:
         super().__init__()
         self.backend = backend
@@ -203,8 +207,11 @@ class CodroneApp(App):
             on_sample=lambda t: self.ui(self.on_telemetry, t),
             on_error=lambda m: self.ui(self.console_write, f"telemetry: {m}", "warn"),
         )
-        self.shell = Shell(_AppHost(self))
+        if command_log is None:
+            command_log = bool(self.cfg.get("log", {}).get("commands", True))
+        self.shell = Shell(_AppHost(self), log_enabled=command_log)
         self.adc = None
+        self.pilot = None
 
     def ui(self, fn, *args) -> None:
         """Run ``fn`` on the UI thread from any thread."""
@@ -232,6 +239,8 @@ class CodroneApp(App):
     def mode(self) -> str:
         if self.adc is not None and self.adc.running:
             return "AUTO"
+        if self.pilot is not None and self.pilot.active:
+            return "PILOT"
         return "INSERT" if isinstance(self.focused, Input) else "NORMAL"
 
     def compose(self) -> ComposeResult:
@@ -245,6 +254,7 @@ class CodroneApp(App):
             yield MapPanel(id="map-panel")
             yield ScorePanel(id="score-panel")
             yield MetaPanel(id="meta-panel")
+            yield PilotPanel(id="pilot-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -265,6 +275,12 @@ class CodroneApp(App):
             adc_ui.attach(self)
         except Exception as exc:  # noqa: BLE001
             self.console_write(f"mission features unavailable: {type(exc).__name__}: {exc}", "warn")
+        try:
+            from . import pilot_ui
+
+            pilot_ui.attach(self)
+        except Exception as exc:  # noqa: BLE001
+            self.console_write(f"PILOT mode unavailable: {type(exc).__name__}: {exc}", "warn")
 
         self.apply_layout(self._layout)
         self.set_interval(0.25, self._tick)
@@ -273,6 +289,9 @@ class CodroneApp(App):
             self.shell.run_line("pair" + (f" {self.port}" if self.port else ""), record=False)
         else:
             self.console_write("type `pair` to connect · `help` for commands · ctrl+x = EMERGENCY STOP", "dim")
+        if self.pilot is not None:
+            self.console_write(f"press {self.pilot.keymap.keys.get('toggle', 'f').upper()} for PILOT mode "
+                               "(fly with the keyboard) · `pilot keys` lists / rebinds them", "dim")
 
     def on_resize(self, event: events.Resize) -> None:
         if self._layout == "auto":
@@ -298,6 +317,7 @@ class CodroneApp(App):
                 SideItem("left…", "left ", True, "cm"), SideItem("right…", "right ", True, "cm"),
                 SideItem("up…", "up ", True, "cm"), SideItem("down…", "down ", True, "cm"),
                 SideItem("turn…", "turn ", True, "deg"),
+                SideItem("pilot (keys)", "pilot"),
             ]),
         ]
 
@@ -341,6 +361,11 @@ class CodroneApp(App):
 
     def on_cmd_input_leave(self, _msg: CmdInput.Leave) -> None:
         self.set_focus(None)
+
+    def on_key(self, event: events.Key) -> None:
+        if self.pilot is not None and self.mode == "NORMAL" and self.pilot.is_toggle(event.key):
+            event.stop()
+            self.pilot.enter()
 
     def on_print(self, event: events.Print) -> None:
         for raw in event.text.splitlines():
@@ -437,7 +462,7 @@ class CodroneApp(App):
             right.append_text(self.adc.status_fragment(pal))
             right.append("  ")
         mode = self.mode
-        chip = {"NORMAL": pal["primary"], "INSERT": pal["success"], "AUTO": pal["warning"]}[mode]
+        chip = {"NORMAL": pal["primary"], "INSERT": pal["success"], "AUTO": pal["warning"], "PILOT": pal["accent"]}[mode]
         right.append(f" {mode} ", style=f"bold #000000 on {chip}")
         up = int(time.time() - self._started)
         right.append(f"  {up // 60:02d}:{up % 60:02d}", style=pal["muted"])
@@ -456,7 +481,7 @@ class CodroneApp(App):
         try:
             self.query_one("#proc-panel", ProcessesPanel).show(self.executor)
             session = {"uptime": f"{up // 60}m{up % 60:02d}s", "commands": str(self.commands_run),
-                       "errors": str(self.errors_seen), "log": self.shell.log_path.name,
+                       "errors": str(self.errors_seen), "log": self.shell.log_path.name if self.shell.log_enabled else "off",
                        "telemetry": f"{self.poller.samples} ok / {self.poller.errors} err"}
             self.query_one("#meta-panel", MetaPanel).show(self.backend.info(), session)
         except Exception:  # noqa: BLE001
@@ -514,7 +539,7 @@ class CodroneApp(App):
 
     def toggle_panel(self, name: str) -> None:
         name = {"log": "console", "side": "sidebar", "telem": "telemetry", "procs": "processes",
-                "metadata": "meta", "match": "score"}.get(name.lower(), name.lower())
+                "metadata": "meta", "match": "score", "hud": "pilot", "keys": "pilot"}.get(name.lower(), name.lower())
         if name not in PANELS:
             self.console_write(f"panels: {', '.join(PANELS)}", "error")
             return
@@ -573,6 +598,8 @@ class CodroneApp(App):
             self._finish_exit()
 
     def _finish_exit(self) -> None:
+        if self.pilot is not None:
+            self.pilot.ctl.stop()
         self.poller.stop()
         self.executor.shutdown()
         try:

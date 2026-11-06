@@ -25,6 +25,8 @@ from .base import (
 CDE_CONTROLLER_VID = 1155
 MIN_FLIP_BATTERY = 50
 DEFAULT_HOVER_CM = 100.0
+STICK_CM_S = 100.0
+STICK_DEG_S = 120.0
 
 _SHAPES = {"square", "triangle", "circle", "spiral", "sway"}
 
@@ -266,6 +268,11 @@ class EduBackend(DroneBackend):
             d.move(float(seconds))
         finally:
             d.reset_move_values()
+
+    def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
+        # vendor yaw goes positive = left (turn_left send +), ours is clockwise so flip it
+        self._d.sendControl(int(roll), int(pitch), -int(yaw), int(throttle))
+        self._drift(roll, pitch, yaw, throttle, hold_s, STICK_CM_S, STICK_DEG_S)
 
     def flip(self, direction: str = "back") -> None:
         if direction not in ("front", "back", "left", "right"):

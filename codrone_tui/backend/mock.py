@@ -50,6 +50,7 @@ class MockBackend(DroneBackend):
         self._rng = random.Random(7)
         self.led = (0, 0, 0, 0)
         self.holding = False
+        self.last_stick = (0, 0, 0, 0)
 
     def connect(self, port: str | None = None) -> str:
         if self.fail_next == "connect":
@@ -135,6 +136,14 @@ class MockBackend(DroneBackend):
         self.pose.apply_move(Direction.RIGHT, roll * s)
         self.pose.apply_move(Direction.UP, throttle * s)
         self.pose.apply_turn(yaw * seconds * 0.9)
+
+    def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
+        self._check("stick")
+        values = (int(roll), int(pitch), int(yaw), int(throttle))
+        if values != self.last_stick:
+            self.last_stick = values
+            self.log.append(("stick", *values))
+        self._drift(*values, hold_s, self.speed_cm_s, 90.0)
 
     def flip(self, direction: str = "back") -> None:
         self.require(Cap.FLIP, "flip")

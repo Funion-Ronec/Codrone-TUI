@@ -1,0 +1,19 @@
+11:46:03  pair
+11:46:22  pilot
+11:46:30  takeoff
+11:46:35  takeoff
+11:46:36  takeoff
+11:46:39  takeoff
+11:46:40  takeoff
+11:46:42  takeoff
+11:46:52  takeoff
+11:46:59  takeoff
+11:47:05  mission run hover_test
+11:47:07  mission run hover_test
+11:47:10  mission run takeoff_land
+11:47:12  takeoff
+11:47:13  takeoff
+11:47:16  takeoff
+11:47:19  takeoff
+11:47:20  takeoff
+11:47:34  exit

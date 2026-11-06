@@ -92,12 +92,13 @@ LOG_DIR = PROJECT_ROOT / "logs"
 
 
 class Shell:
-    def __init__(self, host: Host, log_dir: Path | None = None) -> None:
+    def __init__(self, host: Host, log_dir: Path | None = None, log_enabled: bool = True) -> None:
         self.host = host
         self.commands: dict[str, Command] = {}
         self._alias: dict[str, str] = {}
         self.history: list[str] = []
         self.log_path = (log_dir or LOG_DIR) / f"codrone-command-log-{time.strftime('%Y_%m_%d_%H_%M_%S')}.txt"
+        self.log_enabled = log_enabled
         self._log_failed = False
         self._tls = threading.local()
         self.extra_completions: dict[str, Callable[[], list[str]]] = {}
@@ -172,7 +173,7 @@ class Shell:
             self.out(f"{type(exc).__name__}: {exc}", "error")
 
     def _log(self, line: str) -> None:
-        if self._log_failed:
+        if not self.log_enabled or self._log_failed:
             return
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -267,7 +268,22 @@ def h_cat(sh: Shell, pos, flags) -> None:
 def h_history(sh: Shell, pos, flags) -> None:
     for i, ln in enumerate(sh.history[-30:], 1):
         sh.out(f"{i:>3}  {ln}", "dim")
-    sh.out(f"log file: {sh.log_path}", "dim")
+    if sh.log_enabled:
+        sh.out(f"log file: {sh.log_path}", "dim")
+    else:
+        sh.out("command logging is off (`log on` turns it on)", "dim")
+
+
+def h_log(sh: Shell, pos, flags) -> None:
+    word = pos[0].lower() if pos else ""
+    if word not in ("", "on", "off"):
+        raise UsageError("expected `on` or `off`")
+    if word:
+        sh.log_enabled = word == "on"
+    if sh.log_enabled:
+        sh.out(f"command logging on: {sh.log_path}", "ok" if word else "info")
+    else:
+        sh.out("command logging off: commands are not written to disk", "warn" if word else "info")
 
 
 def h_pair(sh: Shell, pos, flags) -> None:
@@ -491,6 +507,7 @@ def _register_builtins(sh: Shell) -> None:
     R(Command("echo", h_echo, "echo <text>", "print text", "general"))
     R(Command("cat", h_cat, "cat <file>", "print a text file", "general"))
     R(Command("history", h_history, "history", "recent commands + log file path", "general"))
+    R(Command("log", h_log, "log [on|off]", "show / switch command logging to logs/", "general"))
     R(Command("source", h_source, "source <file>", "run a script of commands", "general", ("run",)))
     R(Command("exit", h_exit, "exit [-f]", "land if flying, then quit (-f: quit now)", "general", ("quit", "q")))
 

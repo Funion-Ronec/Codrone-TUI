@@ -31,12 +31,15 @@ from .base import (
 DEFAULT_ADDR = ("127.0.0.1", 5000)
 QUERY_TIMEOUT_S = 1.0
 DEFAULT_HOVER_CM = 100.0
+SIM_YAW_SIGN = -1
+STICK_DEG_S = 120.0
 
 
 class SimBackend(DroneBackend):
     kind = "sim"
     title = "CoDrone Simulator"
     caps = frozenset({Cap.RANGE, Cap.VERTICAL, Cap.LED, Cap.BUZZER, Cap.GRAB, Cap.TELEPORT})
+    stick_hz = 10.0
 
     def __init__(self, verify: bool = True, cm_per_s: float = 80.0, vertical_cm_per_s: float = 60.0) -> None:
         super().__init__()
@@ -213,6 +216,11 @@ class SimBackend(DroneBackend):
     def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
         """Raw sticks in the simulator's native directions. Does not update the dead-reckoned pose."""
         self._d.go(int(roll), int(pitch), int(yaw), int(throttle), float(seconds))
+
+    def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
+        # each go only last one tick, so if the packets stop the sim should stop too
+        self._d._send_to_server(f"go,{int(roll)},{int(pitch)},{SIM_YAW_SIGN * int(yaw)},{int(throttle)},{hold_s:.3f}")
+        self._drift(roll, pitch, yaw, throttle, hold_s, self.cm_per_s, STICK_DEG_S)
 
     def set_led(self, r: int, g: int, b: int, brightness: int = 255) -> None:
         self._d.set_drone_LED(int(r), int(g), int(b), int(brightness))

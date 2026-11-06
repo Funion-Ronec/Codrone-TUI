@@ -9,7 +9,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
 HELP_KEYS = """\
-[b]Modes[/b]   NORMAL (keys act)  ·  INSERT (typing a command)  ·  AUTO (a mission is flying)
+[b]Modes[/b]   NORMAL (keys act)  ·  INSERT (typing a command)  ·  PILOT (keyboard flying)  ·  AUTO (a mission is flying)
 
 [b]Safety (work everywhere, even while typing)[/b]
   ctrl+x   EMERGENCY STOP      motors cut on the EDU · land command on the simulator
@@ -19,12 +19,17 @@ HELP_KEYS = """\
 [b]Moving around[/b]
   i  :  /  start typing a command       esc   leave the input
   tab  or  →   complete the suggestion  ↑ ↓   command history
-  1-7      show / hide panel            p     cycle layout presets
+  1-8      show / hide panel            p     cycle layout presets
   t        cycle colour theme           ctrl+p  command palette
   ?        this help                    q     land (if flying) and quit
 
+[b]PILOT mode[/b]   f enters it (defaults below; `pilot keys` shows yours, `pilot bind` changes them)
+  hold W A S D   move              hold J / L   turn          hold Q / E   down / up
+  I / K          speed + / -       T  take off   G  land       1-4  flips (EDU)
+  F1-F6          bound commands (shapes, missions)             esc or f  leave (the drone hovers)
+
 [b]Panels[/b]
-  1 Console · 2 Sidebar · 3 Telemetry · 4 Processes · 5 Map · 6 Score/Match · 7 Metadata
+  1 Console · 2 Sidebar · 3 Telemetry · 4 Processes · 5 Map · 6 Score/Match · 7 Metadata · 8 Pilot
 
 [b]Tips[/b]
   Commands queue and run in order; `land -e` and `estop` jump the queue.

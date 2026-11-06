@@ -58,6 +58,42 @@ Implementation details for working on Codrone-TUI. See `documentation.txt` for h
 - `fail_next` can be set to a command name to make that command raise once.
 - Manual `go` movement is crude: full stick equals `speed_cm_s`, positive pitch is forward, and positive roll is right.
 
+## PILOT mode
+
+The code is split across three files:
+
+- `pilot.py` holds the keymap, held-key detection and `PilotController`. It doesn't depend on the UI.
+- `pilot_ui.py` connects that to the app: key handling, the `pilot` command, rebinding and the HUD refresh.
+- `widgets/pilot.py` renders the HUD.
+
+How it works:
+
+- PILOT mode is on exactly while `PilotPad` has focus. Clicking elsewhere, opening the prompt or showing a modal blurs the pad, which stops the sticks.
+- The pad consumes only keys bound in `KeyMap`. Unbound keys bubble up to the normal app bindings.
+- The toggle key is handled in `CodroneApp.on_key` rather than a `Binding`, so it can be rebound. It can't be bound to a key that a normal-mode binding already uses (`PilotUI.blocked_keys`).
+- `PilotController` runs on its own `pilot-sticks` thread at `rate_hz`, capped at `DroneBackend.stick_hz` (20 on EDU and mock, 10 on the simulator). Sticks are only sent while the drone is connected and flying, the executor is idle and, with the Windows reader, the window is focused. When sticks go back to zero it sends `ZERO_PACKETS` zero packets, then nothing.
+- One-shot keys (takeoff, land, flips, F-key commands) go through `Shell.run_line`, so they are queued, logged and appear in history. They are debounced, so auto-repeat can't queue the same action several times.
+- There is a small race: a stick packet can go out just as a job starts on the executor. A few zero packets may overlap a takeoff or land.
+
+### Held keys
+
+- `Win32Keys` reads `GetAsyncKeyState`, and only counts keys while the foreground window is the console window, its root owner, or a window belonging to one of our ancestor processes (the terminal or IDE hosting us). Textual's `app_focus` must also be true.
+- This hasn't been checked in every terminal. If a host isn't recognised, the HUD shows NO FOCUS, and `[pilot] hold = "repeat"` is the workaround.
+- `RepeatKeys` is the fallback on other platforms, in headless tests, and for keys `_VK` doesn't know. A key counts as held for `FIRST_HOLD_S` (0.55 s) after its first press, which covers the OS auto-repeat delay, then for `REPEAT_HOLD_S` (0.15 s) after each repeat. That assumes a key repeat rate of at least about 7 per second.
+
+### Stick conventions and estimates
+
+- `DroneBackend.stick` uses the project convention: positive roll is right, positive pitch is forward, positive yaw is clockwise and positive throttle is up. `go` keeps the vendor's native directions.
+- On EDU, vendor yaw is positive to the left (`turn_left` passes a positive value to `turn_direction`), so `EduBackend.stick` negates yaw.
+- The simulator's yaw sign hasn't been checked in the Unity simulator. `SIM_YAW_SIGN = -1` assumes it matches the EDU API. If J and L turn the wrong way in the simulator, flip that constant.
+- Each simulator stick is a `go` command lasting one tick, so the simulator should stop by itself if packets stop. That hasn't been checked either.
+- `STICK_CM_S` and `STICK_DEG_S` (EDU), `cm_per_s` (simulator) and the mock's values only feed the dead-reckoned pose. They are guesses.
+- `SPEEDS` maps the five speed levels to stick power: 15, 25, 40, 60 and 80.
+
+### Keymap file
+
+`pilot_keys.toml` has a `[keys]` table mapping each action to a key (`""` means unbound) and a `[commands]` table mapping a key to a command line. Loading starts from `KeyMap.defaults(kind)` and applies the file on top. A `[commands]` table in the file replaces the default F-key commands entirely. Bad entries are skipped and reported on startup.
+
 ## Commands and scripts
 
 - `Host.out` kinds are `info`, `ok`, `warn`, `error`, `dim`, and `cmd`.
@@ -65,6 +101,8 @@ Implementation details for working on Codrone-TUI. See `documentation.txt` for h
 - `land` queues in order like any other command. `land -e` is the urgent form: it drops everything planned, stops a running mission between steps, then lands.
 - A script runs as one queued job, and each line executes in place. This keeps instant commands such as `echo` and `status` in order with flight commands. `stop` and `land` cancel the rest of the script.
 - `LOG_DIR` is absolute, so logs land in the project wherever the app was launched from.
+- `Shell.log_enabled` gates the command log. `CodroneApp` sets it from `command_log` (`--no-log` passes `False`) and otherwise from `[log] commands`. The `log` command flips it at runtime. The log file is only created on the first write, so a session with logging off leaves nothing on disk. A line is written before its command runs, so `log off` itself is logged and `log on` isn't.
+- Only lines run with `record=True` are logged, which covers typed commands, sidebar picks and PILOT one-shot keys.
 - If the log can't be written, for example in a read-only folder, the app keeps running and stops trying.
 - Handler errors are caught so that a typo can't crash the console.
 - Job states are `queued`, `running`, `done`, `failed`, and `cancelled`.

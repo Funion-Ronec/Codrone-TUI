@@ -14,6 +14,7 @@ Options (both):   --demo        mock drone, nothing flies. Try everything safely
                   --port X      EDU: COM port (default: auto-detect)   Sim: host:port (default 127.0.0.1:5000)
                   --theme X     btop, catppuccin-mocha, tokyo-night, gruvbox, nord, textual-light ...
                   --field PATH  field layout file (default field.toml)
+                  --no-log      do not write typed commands to logs/ (see `log` below)
 Simulator only:   --no-verify   do not probe the simulator on connect
 
 The two TUIs deliberately look different so a real drone is never mistaken for the simulator.
@@ -27,7 +28,8 @@ LAYOUT  (rovr-style bordered panels, btop-style graphs)
   4 Processes  running / queued / finished commands
   5 Map        top-down field, drone, trail   (+x forward = right, +y left = up)
   6 Score      Solo Autonomous scorecard + 180 s clock     7 Metadata   backend, firmware, session stats
-  The layout adapts to the terminal size (auto). `p` cycles presets: auto, full, flight, mission, minimal, focus.
+  8 Pilot      keystroke HUD for PILOT mode: lit keys, stick bars, speed, tricks, bound commands
+  The layout adapts to the terminal size (auto). `p` cycles presets: auto, full, flight, pilot, mission, minimal, focus.
 
 KEYS
 ----
@@ -37,8 +39,37 @@ KEYS
   ctrl+l   urgent land: drops everything queued, then lands
   esc      (NORMAL) soft stop: cancel queued / automatic moves, hover      (in the prompt: leave it)
   i  :  /  start typing        tab or ->  accept suggestion       up/down  history
-  1-7      show/hide panel     p  layout preset      t  cycle theme     ?  help     q  land + quit
+  1-8      show/hide panel     p  layout preset      t  cycle theme     ?  help     q  land + quit
   ctrl+p   command palette (every shell command, fuzzy searchable)
+  f        PILOT mode (below)
+
+
+PILOT MODE  (fly with the keyboard)
+----------
+  `f` (or the `pilot` command) enters it and shows panel 8; `esc` or `f` leaves it and the drone hovers.
+  Default keys:
+    hold W A S D   forward / left / back / right        hold J / L   turn left / right
+    hold Q / E     down / up                            I / K        speed + / -  (5 levels: 15-80% stick)
+    T  take off    G  land now (`land -e`)              1 2 3 4      flip front / back / left / right (EDU)
+    F1-F4  shape square / circle / spiral / triangle (EDU)   F5 / F6  mission run hover_test / takeoff_land
+  Keys that are not pilot keys keep working (`:` or `/` opens the prompt, `?` help, `p` layout).
+  ctrl+x / ctrl+l always win.
+
+  Let go of every key and the drone hovers. The sticks only fly while the drone is linked, flying and
+  nothing else is queued: a takeoff, flip or mission pauses them (HUD shows BUSY).
+  On Windows the TUI reads the real key-down state, so holding feels like a game, but only while its
+  window is in front (HUD shows NO FOCUS otherwise). Elsewhere it guesses from key repeats: a tap moves
+  for about half a second. On the real EDU the first `f` of a session asks you to confirm.
+
+  Rebinding (saved to pilot_keys.toml, loaded on start):
+    pilot keys                       list every binding
+    pilot bind forward up            bind an action to a key   (-f takes the key from whatever had it)
+    pilot bind forward               ... or press the key you want next (esc cancels)
+    pilot run f7 mission run phase1  bind a key to any command  (quote it if it has flags: "land -e")
+    pilot unbind f1                  free a key          pilot reset    back to the defaults
+    pilot speed 3                    set the speed level
+  Actions: forward back left right turn_left turn_right up down speed_up speed_down takeoff land
+           flip_front flip_back flip_left flip_right toggle.   esc, ctrl+x, ctrl+l can't be rebound.
 
 
 COMMANDS  (type `help`, or `help <command>`)
@@ -50,14 +81,17 @@ COMMANDS  (type `help`, or `help <command>`)
             wait <s>   flip [front|back|left|right]  (EDU, battery >= 50%)   shape square|triangle|circle|spiral|sway (EDU)
   gadgets   led <r> <g> <b> | off     beep [hz] [ms]
   simulator grab   release   teleport <x> <y> <z>   resetpos
-  general   help  clear  echo  cat <file>  history  source <script.txt>  exit [-f]
+  general   help  clear  echo  cat <file>  history  log [on|off]  source <script.txt>  exit [-f]
   ui        theme [name]   layout [name]   toggle <panel>
   autonomous  see below
 
 Commands queue and run in order on a flight thread, so the UI never freezes. Exceptions:
   `land -e`, `stop`, `estop` jump the queue.  A plain `land` waits its turn (so a typed sequence still flies in order).
 `source file.txt` runs one command per line (# comments allowed). `exit` lands first if flying (`exit -f` quits at once).
-Every command you type is logged to logs/codrone-command-log-<time>.txt.
+Every command you type is logged to logs/codrone-command-log-<time>.txt (one file per session, created on the
+first command). To turn that off: start with --no-log, or put `commands = false` under [log] in config.toml,
+or type `log off` (`log on` turns it back on, plain `log` shows which it is). With logging off no file is created.
+The ADC attempt history (logs/adc_attempts.json) is separate and not affected.
 Compared with the old draft: `echo` no longer runs your text through a shell, `pair <port>` no longer also prints
 "Invalid Argument", `exit` really lands the drone (the old check compared a method to True), and `direct`/`flip`
 placeholders are replaced by `go`/`stick` and a real `flip`.
@@ -160,6 +194,8 @@ CONFIG  (optional config.toml next to the scripts; every key has a default)
     [ui]   theme = "btop"   layout = "auto"   poll_hz = 5.0
     [edu]  port = "COM5"    min_battery = 40
     [sim]  cm_per_s = 80.0  vertical_cm_per_s = 60.0  verify = true
+    [pilot] speed = 2   rate_hz = 20.0   hold = "auto"   ("repeat" = always guess from key repeats)
+    [log]  commands = true                               (false = no command log file)
 
 
 FILES
@@ -171,10 +207,11 @@ FILES
     codrone_tui/backend/    base (contract), edu, sim, mock, executor, poller
     codrone_tui/adc/        rules, match, field, routine, builtin, preflight   (no UI code: unit-tested alone)
     codrone_tui/            app, commands, adc_ui, screens, config, cli, styles.tcss, widgets/
-    field.toml  routines/  logs/               field layout, your routines, command + attempt logs
+    field.toml  routines/  logs/               field layout, your routines, command logs (unless off) + attempt logs
+    pilot_keys.toml                            your PILOT key bindings (created by `pilot bind` / `pilot run`)
     legacy/Codrone-TUI.draft.py                the original single-file draft, untouched
     legacy/requirements.old.txt                the 16 packages the venv used to have (PyQt5, pyautogui, ... unused)
-    tests/                                     python -m pytest -q   (161 tests, ~40 s; no hardware needed)
+    tests/                                     python -m pytest -q   (178 tests, ~2 min; no hardware needed)
     docs/DEVELOPMENT.md                        developer notes (units, vendor quirks, tuning constants)
 
 SETUP FROM SCRATCH

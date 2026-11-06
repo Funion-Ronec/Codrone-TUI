@@ -203,6 +203,41 @@ def test_command_log_is_written(sh, tmp_path):
     assert "echo logged" in text
 
 
+def test_command_log_can_be_turned_off(tmp_path):
+    host = FakeHost()
+    sh = Shell(host, log_dir=tmp_path, log_enabled=False)
+    sh.run_line("echo secret")
+    assert not sh.log_path.exists()
+    sh.run_line("history")
+    assert "logging is off" in host.text()
+    sh.run_line("log on")
+    sh.run_line("echo kept")
+    sh.run_line("log off")
+    sh.run_line("echo dropped")
+    text = sh.log_path.read_text(encoding="utf-8")
+    assert "echo kept" in text and "secret" not in text and "dropped" not in text
+    sh.run_line("log maybe")
+    assert "expected `on` or `off`" in host.text()
+    host.executor.shutdown()
+
+
+def test_no_log_flag_and_config_switch_logging_off(tmp_path, monkeypatch):
+    from codrone_tui import cli, commands
+
+    monkeypatch.setattr(commands, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(cli, "load_config", lambda: {**_cfg(), "log": {"commands": True}})
+    assert cli.build_app("edu", cli.parse_args("edu", ["--demo", "--no-log"])).shell.log_enabled is False
+    assert cli.build_app("edu", cli.parse_args("edu", ["--demo"])).shell.log_enabled is True
+    monkeypatch.setattr(cli, "load_config", lambda: {**_cfg(), "log": {"commands": False}})
+    assert cli.build_app("edu", cli.parse_args("edu", ["--demo"])).shell.log_enabled is False
+
+
+def _cfg():
+    from codrone_tui.config import DEFAULTS
+
+    return {k: dict(v) for k, v in DEFAULTS.items()}
+
+
 def test_exit_requests_landing_unless_forced(sh):
     sh.run_line("exit")
     assert sh.host.exited is True

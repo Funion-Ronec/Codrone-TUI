@@ -11,6 +11,8 @@ DEFAULTS: dict = {
     "ui": {"theme": "", "layout": "auto", "poll_hz": 5.0},
     "edu": {"port": "", "min_battery": 40},
     "sim": {"cm_per_s": 80.0, "vertical_cm_per_s": 60.0, "verify": True},
+    "pilot": {"speed": 2, "rate_hz": 20.0, "hold": "auto"},
+    "log": {"commands": True},
 }
 
 

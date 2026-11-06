@@ -1,0 +1,12 @@
+12:03:05  pair
+12:03:14  pilot
+12:03:16  takeoff
+12:03:17  takeoff
+12:03:19  takeoff
+12:03:23  takeoff
+12:03:33  takeoff
+12:03:34  takeoff
+12:04:12  land -e
+12:04:30  battery
+12:04:31  clear
+12:06:06  estop

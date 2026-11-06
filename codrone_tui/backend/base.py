@@ -125,6 +125,7 @@ class DroneBackend(abc.ABC):
     kind: str = "base"
     title: str = "Drone"
     caps: frozenset[Cap] = frozenset()
+    stick_hz: float = 20.0
 
     def __init__(self) -> None:
         self.pose = Pose()
@@ -175,6 +176,21 @@ class DroneBackend(abc.ABC):
     @abc.abstractmethod
     def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
         """Raw stick control, each axis -100..100, held for ``seconds``."""
+
+    def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
+        """Live sticks for PILOT mode. NON-blocking and called ``stick_hz`` times a second, so unlike
+        ``go`` it uses the project's convention: +roll right, +pitch forward, +yaw clockwise, +throttle
+        up. ``hold_s`` is the time until the next call."""
+        raise NotSupported(f"live stick control is not available on {self.title}")
+
+    def _drift(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float,
+               cm_s: float, deg_s: float) -> None:
+        """Advance the dead-reckoned pose by ``seconds`` of stick input (``cm_s`` / ``deg_s`` at 100)."""
+        s = cm_s * seconds / 100.0
+        self.pose.apply_move(Direction.FORWARD, pitch * s)
+        self.pose.apply_move(Direction.RIGHT, roll * s)
+        self.pose.z = max(0.0, self.pose.z + throttle * s)
+        self.pose.apply_turn(yaw * deg_s * seconds / 100.0)
 
     def flip(self, direction: str = "back") -> None:
         raise NotSupported(f"flip is not available on {self.title}")

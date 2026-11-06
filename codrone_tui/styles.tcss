@@ -37,6 +37,10 @@ Screen {
     min-width: 34;
 }
 
+#bottom > #pilot-panel {
+    width: 46;
+}
+
 Footer {
     background: $surface;
 }
