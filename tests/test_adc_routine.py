@@ -35,7 +35,6 @@ def flying_ctx():
     ex.shutdown()
 
 
-# ------------------------------------------------------------------ RoutineContext
 def test_context_actions_move_the_backend_and_log(flying_ctx):
     ctx = flying_ctx
     ctx.takeoff()
@@ -62,7 +61,7 @@ def test_goto_uses_pose_and_heading(flying_ctx):
     ctx.goto(200, 100, 150)
     p = ctx.backend.pose
     assert (round(p.x), round(p.y), round(p.z)) == (200, 100, 150)
-    ctx.turn(90)  # facing right: field +y is now the drone's backward
+    ctx.turn(90)
     ctx.goto(200, 0)
     assert (round(p.x), round(p.y)) == (200, 0)
     assert ("move", "backward", pytest.approx(100), None) in ctx.backend.log or any(
@@ -79,14 +78,14 @@ def test_goto_skips_sub_threshold_moves(flying_ctx):
 
 def test_goto_skips_altitude_on_backends_without_vertical_moves():
     backend = MockBackend("sim", time_scale=0.0)
-    backend.caps = backend.caps - {Cap.VERTICAL}  # a drone that cannot climb by distance
+    backend.caps = backend.caps - {Cap.VERTICAL}
     backend.connect()
     ex = FlightExecutor()
     lines = []
     ctx = RoutineContext(backend, ex, log=lines.append)
     ctx.takeoff(credit=False)
     ctx.goto(100, 0, 200)
-    assert backend.pose.z == 100  # unchanged, did not raise
+    assert backend.pose.z == 100
     assert any("altitude change" in line for line in lines)
     assert not backend.has(Cap.VERTICAL)
     ex.shutdown()
@@ -97,7 +96,7 @@ def test_face_takes_the_short_way(flying_ctx):
     ctx.takeoff(credit=False)
     ctx.face(270)
     assert ("turn", -90) in ctx.backend.log
-    ctx.face(270)  # already there
+    ctx.face(270)
     assert [e for e in ctx.backend.log if e[0] == "turn"] == [("turn", -90)]
 
 
@@ -116,9 +115,9 @@ def test_tunnel_is_flown_down_through_not_sideways(flying_ctx):
     assert res.ok and ctx.scorecard.counts["tunnel"] == 1
     assert (round(p.x), round(p.y)) == (round(el.x), round(el.y))
     top, bottom = el.z, el.z - el.height
-    assert p.z < bottom  # ended below the bottom opening
+    assert p.z < bottom
     assert ("down", pytest.approx(ctx.CLEARANCE_CM + el.height + 15.0)) in moves(ctx)
-    assert moves(ctx)[-1][0] == "down"  # the last move is the descent through the tube
+    assert moves(ctx)[-1][0] == "down"
 
 
 def test_tunnel_is_skipped_not_faked_without_vertical_moves(flying_ctx):
@@ -132,7 +131,7 @@ def test_tunnel_is_skipped_not_faked_without_vertical_moves(flying_ctx):
 
 def test_goto_climbs_before_sliding_and_descends_after(flying_ctx):
     ctx = flying_ctx
-    ctx.takeoff()  # mock hovers at 100 cm
+    ctx.takeoff()
     ctx.goto(200, 0, 160)
     assert [d for d, _ in moves(ctx)] == ["up", "forward"]
     ctx.backend.log.clear()
@@ -154,9 +153,9 @@ def test_no_backing_up_when_the_next_gate_is_close(flying_ctx):
 def test_backs_up_when_it_is_already_past_the_gate(flying_ctx):
     ctx = flying_ctx
     ctx.takeoff()
-    ctx.goto(300, 0)  # beyond the red arch (x=49)
+    ctx.goto(300, 0)
     ctx.backend.log.clear()
-    ctx.through("red_arch")  # must go back for a run-up, then pass through
+    ctx.through("red_arch")
     dirs = [d for d, _ in moves(ctx)]
     assert dirs[0] == "backward" and ctx.scorecard.counts["red_arch"] == 1
 
@@ -176,7 +175,7 @@ def test_through_lines_up_flies_through_and_credits(flying_ctx):
     el = ctx.field.get("red_arch")
     p = ctx.backend.pose
     assert res.ok and ctx.scorecard.counts["red_arch"] == 1
-    assert (round(p.x), round(p.y)) == (round(el.x + ctx.PAST_CM), round(el.y))  # clear of the gate, no further
+    assert (round(p.x), round(p.y)) == (round(el.x + ctx.PAST_CM), round(el.y))
     assert ctx.scorecard.events[-1].source == "routine"
     assert ctx.through("large_cube", credit=False) is None
     assert ctx.scorecard.counts["large_cube"] == 0
@@ -254,7 +253,6 @@ def test_context_follows_the_match_controller():
     assert card.events[0].t == pytest.approx(25)
 
 
-# ---------------------------------------------------------------------- dry runs
 def test_builtin_routine_names():
     assert set(BUILTIN) == {"hover_test", "takeoff_land", "phase1", "spiral", "phase3", "full_run"}
     assert all(r.description and r.ok for r in BUILTIN.values())
@@ -355,7 +353,7 @@ def test_dry_run_catches_errors_and_endless_loops():
         while True:
             ctx.credit("tunnel")
 
-    assert dry_run(credit_loop).ok  # terminates thanks to the action limit
+    assert dry_run(credit_loop).ok
 
 
 def test_dry_run_loop_until_time_runs_out():
@@ -377,7 +375,6 @@ def test_dry_run_of_a_broken_loaded_routine_reports_error(tmp_path):
     assert not report.ok and "did not load" in report.error
 
 
-# ------------------------------------------------------------------------ loader
 GOOD_ROUTINE = '''
 from codrone_tui.adc.routine import routine
 

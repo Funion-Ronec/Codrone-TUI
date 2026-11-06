@@ -35,7 +35,7 @@ from .screens import ConfirmScreen
 from .widgets.panels import MapPanel, SideItem
 from .widgets.score import ScorePanel, clock
 
-_MARKER = {  # element name -> (glyph, colour role on the map)
+_MARKER = {
     "red_arch": ("R", "red"), "blue_arch": ("B", "blue"), "green_keyhole": ("G", "green"),
     "yellow_keyhole": ("Y", "yellow"), "large_cube": ("C", "other"), "mini_1": ("1", "other"),
     "mini_2": ("2", "other"), "mini_3": ("3", "other"), "tunnel": ("T", "other"),
@@ -73,7 +73,6 @@ class AdcController:
         for w in self.field.warnings():
             app.console_write(f"field: {w}", "warn")
 
-    # ------------------------------------------------------------------- state
     @property
     def scorecard(self) -> Scorecard:
         if self.match.state in ("running", "finished") and self.match.scorecard is not None:
@@ -109,10 +108,9 @@ class AdcController:
             panel = self.app.query_one("#map-panel", MapPanel)
             panel.view.set_markers(markers)
             panel.border_title = "5 Map" + ("" if self.field.calibrated else " ⚠ placeholder field")
-        except Exception:  # noqa: BLE001 - before the map is mounted
+        except Exception:  # noqa: BLE001
             pass
 
-    # -------------------------------------------------------------- app hooks
     def sidebar_sections(self) -> list[tuple[str, list[SideItem]]]:
         missions = [SideItem(r.name, f"mission run {r.name}", hint=self.hints.get(r.name, "")) for r in self.routines]
         return [
@@ -132,7 +130,7 @@ class AdcController:
 
     def tick(self) -> None:
         res = self.match.tick()
-        if res is not None:  # the 180 s clock ran out
+        if res is not None:
             self.app.executor.abort()
             self.app.console_write(f"MATCH OVER -- time up. Attempt {res.number}: {res.score} pts", "error")
             if self.app.backend.connected and self.app.backend.flying:
@@ -153,7 +151,6 @@ class AdcController:
             t.append(f"MATCH {self.match.last_result.number}: {self.match.last_result.score} pts", style=pal["primary"])
         return t
 
-    # ------------------------------------------------------------ preflight UI
     def _preflight(self):
         b = self.app.backend
         return run_preflight(self.app.poller.latest, b.connected, self.min_battery, self.confirmed)
@@ -162,7 +159,6 @@ class AdcController:
         return [f"  {_ICON[r.status]} {r.item.label}" + (f"  [{r.item.manual_ref}]" if r.item.manual_ref else "")
                 + (f"  -- {r.detail}" if r.status != "pass" and r.detail else "") for r in results]
 
-    # -------------------------------------------------------------- mission run
     def start_mission(self, name: str, in_match: bool, skip_confirm: bool) -> None:
         app, b = self.app, self.app.backend
         if self.running:
@@ -250,7 +246,6 @@ class AdcController:
         if in_match and self.match.state == "running":
             app.console_write("match still running: `match finish` to bank it, or `match reset` + run again", "dim")
 
-    # --------------------------------------------------------------- commands
     def _register_commands(self, sh: Shell) -> None:
         R = sh.register
         R(Command("mission", self._cmd_mission, "mission list|run|dry|info|stop|reload", "autonomous routines", "autonomous", ("m",)))

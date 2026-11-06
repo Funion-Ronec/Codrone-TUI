@@ -11,12 +11,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-MATCH_SECONDS = 180  # 4: "3-minute match"
-MAX_ATTEMPTS = 3  # 4: "up to three attempts per competition"
+MATCH_SECONDS = 180
+MAX_ATTEMPTS = 3
 
 SPIRAL_KEY = "spiral_bonus"
 SPIRAL_SEQUENCE = ("mini_1", "mini_2", "mini_3")
-AUTO_SOURCE = "auto"  # CreditEvent.source of events the scorecard awards by itself
+AUTO_SOURCE = "auto"
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,6 @@ def _defs(*rows: tuple) -> dict[str, TaskDef]:
     return {r[0]: TaskDef(*r) for r in rows}
 
 
-# Ordered as the manual's scoring table (4.2).
 TASKS: dict[str, TaskDef] = _defs(
     ("takeoff", "Take off", 5, 1, "takeoff"),
     ("red_arch", "Fly under the red arch gate", 5, 2, "arch"),
@@ -47,7 +46,6 @@ TASKS: dict[str, TaskDef] = _defs(
     ("tunnel", "Fly through the tunnel", 15, 2, "tunnel"),
 )
 
-# Landing is scored once per match, whichever target it is (4.2: "Once, regardless of landing location").
 LANDINGS: dict[str, TaskDef] = _defs(
     ("landing_pad", "Land on a landing pad", 5, 1, "landing"),
     ("landing_cube", "Land on any cube", 10, 1, "landing"),
@@ -63,12 +61,10 @@ def max_score() -> int:
 @dataclass(frozen=True)
 class PilotingPhase:
     number: int
-    points: int  # awarded each time the whole phase is completed in order
+    points: int
     steps: tuple[str, ...]
 
 
-# Solo Piloting flight path (3.1.8-3.1.11), kept as reference data for route templates.
-# "yellow_loop" is the piloting-only loop over the yellow keyhole (3.1.7), not a fly-through.
 PILOTING_TAKEOFF_POINTS = 5
 PILOTING_PHASES: tuple[PilotingPhase, ...] = (
     PilotingPhase(1, 5, ("red_arch", "green_keyhole", "large_cube")),
@@ -80,18 +76,18 @@ PILOTING_PHASES: tuple[PilotingPhase, ...] = (
 
 @dataclass(frozen=True)
 class CreditEvent:
-    t: float  # seconds since the match (or scorecard) started
+    t: float
     key: str
     points: int
-    source: str  # "manual", "routine" or AUTO_SOURCE
+    source: str
 
 
 @dataclass(frozen=True)
 class CreditResult:
     ok: bool
-    points: int = 0  # points for the task itself (negative for undo / landing removal)
+    points: int = 0
     message: str = ""
-    auto: list[str] = field(default_factory=list)  # keys awarded automatically (spiral bonus)
+    auto: list[str] = field(default_factory=list)
     auto_points: int = 0
 
     @property
@@ -126,7 +122,6 @@ class Scorecard:
         self._landing: str | None = None
         self._t0 = time.monotonic()
 
-    # ------------------------------------------------------------------ queries
     @property
     def events(self) -> list[CreditEvent]:
         return list(self._events)
@@ -179,7 +174,6 @@ class Scorecard:
             out[self._landing] = self.landing_points
         return out
 
-    # ----------------------------------------------------------------- mutation
     def _now(self) -> float:
         return time.monotonic() - self._t0
 
@@ -200,7 +194,6 @@ class Scorecard:
         auto: list[str] = []
         auto_points = 0
 
-        # Each bonus needs its own mini_3 and mini_3 is capped at 2, so the bonus cap (2) can't be hit first.
         if key == SPIRAL_SEQUENCE[-1] and self._spiral_completed():
             bonus = TASKS[SPIRAL_KEY]
             self._events.append(CreditEvent(when, SPIRAL_KEY, bonus.points, AUTO_SOURCE))
@@ -241,7 +234,6 @@ class Scorecard:
         self._landing = None
         self._t0 = time.monotonic()
 
-    # -------------------------------------------------------------- persistence
     def to_dict(self) -> dict[str, Any]:
         return {
             "events": [{"t": e.t, "key": e.key, "points": e.points, "source": e.source} for e in self._events],

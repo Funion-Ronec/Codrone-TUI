@@ -54,7 +54,6 @@ class Panel(Vertical):
         return True
 
 
-# --------------------------------------------------------------------------- status bar
 class StatusBar(Static):
     DEFAULT_CSS = """
     StatusBar {
@@ -66,7 +65,6 @@ class StatusBar(Static):
     """
 
 
-# ------------------------------------------------------------------------------ console
 class ShellSuggester(Suggester):
     def __init__(self, shell) -> None:
         super().__init__(use_cache=False, case_sensitive=False)
@@ -135,7 +133,6 @@ class ConsolePanel(Panel):
         self.shell = shell
 
     def compose(self) -> ComposeResult:
-        # min_width defaults to 78, which in a narrower panel adds a horizontal scrollbar and clips lines
         yield RichLog(id="log", wrap=True, markup=False, highlight=False, max_lines=3000, min_width=16)
         with Horizontal(id="prompt-row"):
             yield Static("❯", id="prompt")
@@ -162,12 +159,11 @@ class ConsolePanel(Panel):
         self.log_widget.clear()
 
 
-# ----------------------------------------------------------------------------- sidebar
 @dataclass(frozen=True)
 class SideItem:
     label: str
     command: str
-    prefill: bool = False  # True: put the command in the input instead of running it
+    prefill: bool = False
     hint: str = ""
 
 
@@ -210,7 +206,6 @@ class SidebarPanel(Panel):
             self.post_message(self.Chosen(item))
 
 
-# --------------------------------------------------------------------------- telemetry
 class TelemetryPanel(Panel):
     DEFAULT_CSS = """
     TelemetryPanel VerticalScroll { height: 1fr; scrollbar-size-vertical: 1; }
@@ -276,7 +271,6 @@ class TelemetryPanel(Panel):
         return g
 
 
-# -------------------------------------------------------------------------- processes
 class ProcessesPanel(Panel):
     def __init__(self, **kw) -> None:
         super().__init__("Processes", hotkey="4", **kw)
@@ -306,8 +300,7 @@ class ProcessesPanel(Panel):
             self.query_one("#procs", Static).update(t)
 
 
-# ------------------------------------------------------------------------------- map
-_ARROWS = "→↘↓↙←↖↑↗"  # heading 0,45,90.. clockwise, +x drawn to the right
+_ARROWS = "→↘↓↙←↖↑↗"
 
 
 class MapView(Widget):
@@ -317,8 +310,8 @@ class MapView(Widget):
 
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
-        self.markers: list[tuple[str, float, float, str]] = []  # (glyph, x, y, role)
-        self.pose = (0.0, 0.0, 0.0, 0.0)  # x y z heading
+        self.markers: list[tuple[str, float, float, str]] = []
+        self.pose = (0.0, 0.0, 0.0, 0.0)
         self.trail: deque[tuple[float, float]] = deque(maxlen=400)
         self.estimated = True
         self.scale_cm = 1.0
@@ -330,7 +323,7 @@ class MapView(Widget):
 
     def set_pose(self, x: float, y: float, z: float, heading: float, estimated: bool = True) -> None:
         key = (round(x), round(y), round(z), round(heading), estimated)
-        if key == self._pose_key:  # telemetry arrives 5x a second; redraw only when the drone really moved
+        if key == self._pose_key:
             return
         self._pose_key = key
         self.pose, self.estimated = (x, y, z, heading), estimated
@@ -340,7 +333,7 @@ class MapView(Widget):
 
     def clear_trail(self) -> None:
         self.trail.clear()
-        self._pose_key = None  # the next pose must redraw even if it did not change
+        self._pose_key = None
         self.refresh()
 
     def render(self) -> Text:
@@ -350,8 +343,6 @@ class MapView(Widget):
         xs, ys = [p[0] for p in pts], [p[1] for p in pts]
         x0, x1 = min(xs) - 20, max(xs) + 20
         y0, y1 = min(ys) - 20, max(ys) + 20
-        # cm per column; rows are ~2x taller. Fit into (w-2) x (h-2) so rounding to a cell can never
-        # push a point onto or past the edge of the widget.
         s = max((x1 - x0) / max(1, w - 2), (y1 - y0) / (2.0 * max(1, h - 2)), 1.0)
         self.scale_cm = s
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -368,7 +359,6 @@ class MapView(Widget):
             if 0 <= c < w and 0 <= r < h:
                 grid[r][c] = (ch, style)
 
-        # connect consecutive trail points so a jump (dead-reckoned moves land instantly) reads as a path
         steps = max(w, 2 * h)
         pts_t = list(self.trail) + [(self.pose[0], self.pose[1])]
         for (ax, ay), (bx, by) in zip(pts_t, pts_t[1:]):
@@ -404,7 +394,6 @@ class MapPanel(Panel):
         return self.query_one("#map", MapView)
 
 
-# ------------------------------------------------------------------------------ meta
 class MetaPanel(Panel):
     def __init__(self, **kw) -> None:
         super().__init__("Metadata", hotkey="7", **kw)

@@ -22,7 +22,7 @@ class Job:
     id: int
     label: str
     fn: Callable[[], Any]
-    state: str = "queued"  # queued | running | done | failed | cancelled
+    state: str = "queued"
     error: str | None = None
     result: Any = None
     submitted: float = field(default_factory=time.time)
@@ -59,7 +59,6 @@ class FlightExecutor:
         self._thread = threading.Thread(target=self._run, name="flight-executor", daemon=True)
         self._thread.start()
 
-    # ---------------------------------------------------------------- public API
     def submit(self, label: str, fn: Callable[[], Any]) -> Job:
         job = Job(next(self._ids), label, fn)
         with self._lock:
@@ -107,12 +106,11 @@ class FlightExecutor:
         self.abort()
         self._q.put(None)
 
-    # --------------------------------------------------------------- internals
     def _emit(self, kind: str, job: Job) -> None:
         if self._listener is not None:
             try:
                 self._listener(kind, job)
-            except Exception:  # a UI bug must never kill the flight thread
+            except Exception:  # a UI bug cant ever kill the flight thread
                 pass
 
     def _run(self) -> None:
@@ -131,11 +129,11 @@ class FlightExecutor:
                 job.state = "done"
             except Aborted:
                 job.state = "cancelled"
-            except SystemExit as exc:  # codrone_edu calls exit() when it cannot connect
+            except SystemExit as exc:  # codrone_edu calls exit() when it cant connect
                 job.state, job.error = "failed", f"library tried to exit ({exc.code!r})"
             except BackendError as exc:
                 job.state, job.error = "failed", str(exc)
-            except Exception as exc:  # noqa: BLE001 - report anything the library throws
+            except Exception as exc:  # noqa: BLE001
                 job.state, job.error = "failed", f"{type(exc).__name__}: {exc}"
             finally:
                 job.finished = time.time()

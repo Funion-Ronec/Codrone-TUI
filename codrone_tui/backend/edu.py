@@ -22,9 +22,9 @@ from .base import (
     Telemetry,
 )
 
-CDE_CONTROLLER_VID = 1155  # USB vendor id the vendor library looks for
-MIN_FLIP_BATTERY = 50  # the library silently refuses flips below this
-DEFAULT_HOVER_CM = 100.0  # assumed hover height if the range sensor gives no reading
+CDE_CONTROLLER_VID = 1155
+MIN_FLIP_BATTERY = 50
+DEFAULT_HOVER_CM = 100.0
 
 _SHAPES = {"square", "triangle", "circle", "spiral", "sway"}
 
@@ -62,7 +62,7 @@ def prewarm_edu_lib() -> None:
     def work() -> None:
         try:
             load_edu_lib()
-        except BaseException:  # noqa: BLE001 - reported properly by connect(); includes vendor exit()
+        except BaseException:  # noqa: BLE001
             pass
 
     threading.Thread(target=work, name="edu-lib-prewarm", daemon=True).start()
@@ -72,7 +72,7 @@ def find_controller_ports() -> list[tuple[str, str, bool]]:
     """(device, description, looks_like_codrone_controller) for every serial port."""
     try:
         from serial.tools.list_ports import comports
-    except Exception:  # pyserial missing
+    except Exception:
         return []
     return [(p.device, p.description or "", p.vid == CDE_CONTROLLER_VID) for p in comports()]
 
@@ -88,13 +88,12 @@ class EduBackend(DroneBackend):
     def __init__(self) -> None:
         super().__init__()
         self._drone = None
-        self._lib = None  # the codrone_edu.drone module (enums live there)
+        self._lib = None
         self._port: str | None = None
         self._firmware: dict[str, str] = {}
         self._tx_lock = threading.RLock()
-        prewarm_edu_lib()  # the 1.7 s vendor import runs in the background while the UI comes up
+        prewarm_edu_lib()
 
-    # ----------------------------------------------------------------- lifecycle
     def connect(self, port: str | None = None) -> str:
         try:
             lib = load_edu_lib()
@@ -106,7 +105,7 @@ class EduBackend(DroneBackend):
         self._wrap_transfer(drone)
         try:
             drone.pair(port)
-        except SystemExit as exc:  # the vendor library exits instead of raising
+        except SystemExit as exc:  # vendor lib just calls exit() instead of raising, real dumb
             raise BackendError(
                 "could not open the CoDrone EDU controller"
                 + (f" on {port}" if port else " (is it plugged in by USB?)")
@@ -114,7 +113,7 @@ class EduBackend(DroneBackend):
         except Exception as exc:  # noqa: BLE001
             raise BackendError(f"pairing failed: {type(exc).__name__}: {exc}") from exc
 
-        # pair() claims success even if the drone is off -- verify we really get state back.
+        # pair() says it worked even if the drone is off, lying ass function. check we really get state back
         state = None
         for _ in range(10):
             state = drone.get_state_data()[2]
@@ -132,7 +131,7 @@ class EduBackend(DroneBackend):
         self._port = port or self._guess_port()
         self.flying = False
         self.pose.reset()
-        try:  # cache firmware strings now: info() runs on the UI thread and must not touch serial
+        try:  # grab firmware strings now cuz info() run on the UI thread and that cant touch serial
             fw = drone.get_information_data()
             self._firmware = {"drone fw": str(fw[2]), "controller fw": str(fw[4])}
         except Exception:  # noqa: BLE001
@@ -152,13 +151,13 @@ class EduBackend(DroneBackend):
             with self._tx_lock:
                 return original(header, data)
 
-        drone.transfer = locked_transfer  # sendRequest/sendControl all route through self.transfer
+        drone.transfer = locked_transfer
 
     @staticmethod
     def _safe_disconnect(drone) -> None:
         try:
             drone.close()
-        except BaseException:  # noqa: BLE001 - includes SystemExit
+        except BaseException:  # noqa: BLE001
             pass
 
     def disconnect(self) -> None:
@@ -177,7 +176,6 @@ class EduBackend(DroneBackend):
         except Exception:  # noqa: BLE001
             return False
 
-    # ------------------------------------------------------------------- helpers
     @property
     def _d(self):
         if self._drone is None:
@@ -194,11 +192,10 @@ class EduBackend(DroneBackend):
         except Exception:  # noqa: BLE001
             return None
 
-    # ------------------------------------------------------------------- flight
     def takeoff(self) -> None:
         self._d.takeoff()
         self.flying = True
-        self.pose.x = self.pose.y = 0.0  # the origin of our frame is where we took off
+        self.pose.x = self.pose.y = 0.0
         self._sync_height()
 
     def _sync_height(self) -> None:
@@ -210,7 +207,7 @@ class EduBackend(DroneBackend):
             time.sleep(0.05)
             mm = d.range_data[2]
             self.pose.z = float(mm) / 10.0 if mm is not None and mm >= 0 else DEFAULT_HOVER_CM
-        except Exception:  # noqa: BLE001 - a sensor hiccup must not fail the takeoff
+        except Exception:  # noqa: BLE001
             self.pose.z = DEFAULT_HOVER_CM
 
     def land(self) -> None:
@@ -225,7 +222,7 @@ class EduBackend(DroneBackend):
             return
         try:
             d.emergency_stop()
-        except BaseException:  # noqa: BLE001 - must never raise, from any thread
+        except BaseException:  # noqa: BLE001 - estop must never raise, no matter what thread call it
             pass
 
     def hover(self, seconds: float = 1.0) -> None:
@@ -254,7 +251,7 @@ class EduBackend(DroneBackend):
         deg = float(degrees)
         if abs(deg) < 1:
             return
-        # vendor convention is the reverse of ours: turn_left/right take a positive magnitude
+        # vendor is backwards from us, turn_left/right only take a positive number
         (self._d.turn_right if deg > 0 else self._d.turn_left)(abs(int(round(deg))))
         self.pose.apply_turn(deg)
 
@@ -270,7 +267,6 @@ class EduBackend(DroneBackend):
         finally:
             d.reset_move_values()
 
-    # --------------------------------------------------- optional capabilities
     def flip(self, direction: str = "back") -> None:
         if direction not in ("front", "back", "left", "right"):
             raise BackendError("flip direction must be front, back, left or right")
@@ -298,11 +294,8 @@ class EduBackend(DroneBackend):
     def reset_position(self) -> None:
         self.pose.reset()
 
-    # --------------------------------------------------------------- telemetry
     def read_telemetry(self) -> Telemetry:
         d, lib = self._d, self._lib
-        # Fire every request first, give the receiver thread one short window, then read the
-        # cached arrays: ~60 ms per snapshot instead of ~10 ms per sensor in series.
         for kind in (lib.DataType.State, lib.DataType.Position, lib.DataType.Range,
                      lib.DataType.Motion, lib.DataType.RawFlow, lib.DataType.Altitude):
             d.sendRequest(lib.DeviceType.Drone, kind)
@@ -311,7 +304,7 @@ class EduBackend(DroneBackend):
         s, pos, rng = d.state_data, d.position_data, d.range_data
         mot, flow, alt = d.motion_data, d.flow_data, d.altitude_data
 
-        def mm_to_cm(v):  # the sensors report -1000 when they have no reading
+        def mm_to_cm(v):
             return None if v is None or v < 0 else round(float(v) / 10.0, 1)
 
         front, bottom = mm_to_cm(rng[1]), mm_to_cm(rng[2])

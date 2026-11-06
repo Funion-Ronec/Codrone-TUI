@@ -37,7 +37,6 @@ _OPPOSITE = {
     Direction.DOWN: Direction.UP,
 }
 
-# land_on(target) -> (field element to fly over, scorecard landing key)
 _LANDING_TARGETS = {
     "pad": ("landing_pad", "landing_pad"),
     "bullseye": ("bullseye", "landing_bullseye"),
@@ -57,12 +56,12 @@ class ExecutorLike(Protocol):
 class RoutineContext:
     """What a routine flies with. All distances in cm, angles in degrees, see ``backend.base``."""
 
-    APPROACH_CM = 60.0  # how far before an element ``through`` lines up
-    PAST_CM = 35.0  # how far beyond a thin gate the pass ends: enough for the whole drone to be clear of it
-    CUBE_MARGIN_CM = 30.0  # beyond the far wall of a cube (which is as deep as it is wide)
-    MIN_RUNUP_CM = 25.0  # closer than this to an element's far side we back up to get a run-up
-    CLEARANCE_CM = 40.0  # how far above a vertical element (the tunnel) the drone lines up
-    MIN_MOVE_CM = 5.0  # smaller corrections are skipped; dead reckoning is not that precise
+    APPROACH_CM = 60.0
+    PAST_CM = 35.0
+    CUBE_MARGIN_CM = 30.0
+    MIN_RUNUP_CM = 25.0
+    CLEARANCE_CM = 40.0
+    MIN_MOVE_CM = 5.0
     MIN_TURN_DEG = 2.0
 
     def __init__(
@@ -79,14 +78,13 @@ class RoutineContext:
         self.executor = executor
         self.field = field if field is not None else default_field()
         self.match = match
-        self.rejected: list[str] = []  # credits the scorecard refused (task already maxed out)
+        self.rejected: list[str] = []
         self._explicit_card = scorecard
         self._private_card: Scorecard | None = None
         self._log = log
         self._clock = clock
         self._t0 = clock()
 
-    # ------------------------------------------------------------------- state
     @property
     def scorecard(self) -> Scorecard:
         if self._explicit_card is not None:
@@ -112,7 +110,6 @@ class RoutineContext:
         """Raises ``Aborted`` if the operator asked to stop. Every action calls this first."""
         self.executor.check()
 
-    # ----------------------------------------------------------------- actions
     def takeoff(self, credit: bool = True) -> None:
         self.check()
         self.log("takeoff")
@@ -205,13 +202,13 @@ class RoutineContext:
             else:
                 self.log(f"altitude change of {dz:+.0f} cm skipped: {self.backend.title} cannot move vertically by distance")
 
-        if dz > 0:  # climb first so the drone is already high enough when it crosses the field
+        if dz > 0:
             vertical()
         if abs(forward) >= self.MIN_MOVE_CM:
             self.forward(forward, speed)
         if abs(left) >= self.MIN_MOVE_CM:
             self.left(left, speed)
-        if dz < 0:  # descend last
+        if dz < 0:
             vertical()
 
     def through(
@@ -232,16 +229,14 @@ class RoutineContext:
         el = self._element(name)
         if el.vertical:
             return self._through_vertical(el, speed, credit)
-        # the drone only has to clear the element's depth: ~35 cm for a thin gate, half the width plus a
-        # margin for a cube (overshooting by more just means backing up for the next element)
         past = el.width / 2 + self.CUBE_MARGIN_CM if el.kind == "cube" and el.width else self.PAST_CM
         approach = self.APPROACH_CM if approach_cm is None else approach_cm
         hd = math.radians(el.heading)
-        dx, dy = math.cos(hd), -math.sin(hd)  # unit vector of the direction of travel
+        dx, dy = math.cos(hd), -math.sin(hd)
         self.log(f"through {name}")
         self.face(el.heading)
         pose = self.backend.pose
-        ahead = (el.x - pose.x) * dx + (el.y - pose.y) * dy  # >0: the element is in front of us
+        ahead = (el.x - pose.x) * dx + (el.y - pose.y) * dy
         if ahead >= self.MIN_RUNUP_CM:
             approach = min(approach, ahead)
         self.goto(el.x - approach * dx, el.y - approach * dy, el.z, speed)
@@ -255,8 +250,8 @@ class RoutineContext:
             self.log(f"{el.name} must be flown down through, but {self.backend.title} cannot move vertically by distance: skipped")
             return None
         self.log(f"down through {el.name}")
-        self.goto(el.x, el.y, el.z + self.CLEARANCE_CM, speed)  # climbs first, then slides over the top
-        self.down(self.CLEARANCE_CM + el.height + 15.0, speed)  # past the bottom opening
+        self.goto(el.x, el.y, el.z + self.CLEARANCE_CM, speed)
+        self.down(self.CLEARANCE_CM + el.height + 15.0, speed)
         if credit and el.name in TASKS:
             return self.credit(el.name)
         return None
@@ -269,7 +264,6 @@ class RoutineContext:
         self.log(res.message)
         return res
 
-    # ---------------------------------------------------------------- internals
     def _move(self, direction: Direction, cm: float, speed: float | None) -> None:
         self.check()
         if cm < 0:
@@ -286,15 +280,14 @@ class RoutineContext:
             raise RoutineError(str(exc.args[0])) from None
 
 
-# ----------------------------------------------------------------- routine objects
 @dataclass
 class Routine:
     name: str
     description: str
     fn: Callable[[RoutineContext], Any]
     tags: tuple[str, ...] = ()
-    source: str = ""  # file it was loaded from, "" for built-ins
-    error: str | None = None  # set on placeholder entries for files that failed to load
+    source: str = ""
+    error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -355,7 +348,7 @@ def _import_routines(path: Path) -> list[Routine]:
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot import {path}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module  # dataclasses & pickling need the module to be registered
+    sys.modules[module_name] = module  # dataclasses and pickling break if the module aint registered first
     try:
         spec.loader.exec_module(module)
     finally:
@@ -370,12 +363,11 @@ def _error_entry(path: Path, message: str, name: str | None = None) -> Routine:
     return Routine(name or f"{path.stem} (load error)", message, fn, ("error",), str(path), message)
 
 
-# ------------------------------------------------------------------------ dry run
-DRY_TAKEOFF_S = 5.0  # a real EDU takeoff blocks ~8 s; this is an optimistic planning figure
+DRY_TAKEOFF_S = 5.0
 DRY_LAND_S = 3.0
 DRY_TURN_S_PER_90 = 1.5
 DRY_SPEED_CM_S = 50.0
-DRY_LIMIT_S = 600.0  # virtual seconds before a dry run gives up on a routine that never ends
+DRY_LIMIT_S = 600.0
 DRY_MAX_ACTIONS = 5000
 
 
@@ -424,7 +416,6 @@ class _VirtualExecutor:
         self._calls = 0
 
     def check(self) -> None:
-        # every ctx action calls this, so it also bounds loops that never advance virtual time
         self._calls += 1
         if self._backend.vt > DRY_LIMIT_S or self._calls > DRY_MAX_ACTIONS:
             raise Aborted()

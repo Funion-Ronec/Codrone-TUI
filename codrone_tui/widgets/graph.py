@@ -9,7 +9,6 @@ from rich.text import Text
 from textual.widget import Widget
 
 BRAILLE = 0x2800
-# dot bits, bottom row first (braille cell = 2 columns x 4 rows)
 _LEFT = (0x40, 0x04, 0x02, 0x01)
 _RIGHT = (0x80, 0x20, 0x10, 0x08)
 
@@ -30,7 +29,7 @@ def palette(app) -> dict[str, str]:
     try:
         v = app.get_css_variables()
     except Exception:  # noqa: BLE001
-        return dict(_FALLBACK)  # not cached: the app may simply not be ready yet
+        return dict(_FALLBACK)
     out = dict(_FALLBACK)
     for k in ("success", "warning", "error", "primary", "foreground", "accent"):
         if isinstance(v.get(k), str) and v[k].startswith("#"):
@@ -115,7 +114,7 @@ def braille_rows(values: list[float], width: int, height: int, vmin: float, vmax
     norms = [0.0 if v is None else max(0.0, min(1.0, (v - vmin) / span)) for v in vals]
     rows: list[list[tuple[str, float]]] = []
     for r in range(height):
-        base = 4 * (height - 1 - r)  # dots below this cell row
+        base = 4 * (height - 1 - r)
         line = []
         for c in range(width):
             bits = 0
@@ -139,8 +138,8 @@ class Graph(Widget):
         self.label, self.unit = label, unit
         self.vmin, self.vmax_fixed = vmin, vmax
         self.rows = rows
-        self.invert = invert  # True: low values are the bad ones (battery, distance)
-        self.flat = flat  # one colour instead of a gradient
+        self.invert = invert
+        self.flat = flat
         self.values: list[float] = []
         self.current: float | None = None
         self.styles.height = rows + 1
@@ -203,8 +202,6 @@ class Meter(Widget):
         level = gradient(frac, lo, pal["warning"], hi)
         for i in range(bar_w):
             if i < filled:
-                # "good when high" meters (battery) take ONE colour from their level; load-style
-                # meters sweep green -> red along the bar like btop
                 t.append("■", style=level if self.invert else gradient(i / max(1, bar_w - 1), lo, pal["warning"], hi))
             else:
                 t.append("■", style=pal["muted"] + " dim")

@@ -28,10 +28,10 @@ def test_pose_moves_follow_heading():
     p = Pose()
     p.apply_move(Direction.FORWARD, 100)
     assert (round(p.x), round(p.y)) == (100, 0)
-    p.apply_turn(90)  # now facing the drone's right (-y)
+    p.apply_turn(90)
     p.apply_move(Direction.FORWARD, 50)
     assert (round(p.x), round(p.y)) == (100, -50)
-    p.apply_move(Direction.LEFT, 10)  # left of a right-facing drone is +x
+    p.apply_move(Direction.LEFT, 10)
     assert (round(p.x), round(p.y)) == (110, -50)
     p.apply_move(Direction.DOWN, 999)
     assert p.z == 0.0
@@ -44,7 +44,7 @@ def test_mock_edu_vs_sim_capabilities():
     sim.connect()
     with pytest.raises(NotSupported):
         sim.flip()
-    assert sim.read_telemetry().battery is None  # sim cannot report battery
+    assert sim.read_telemetry().battery is None
     edu.connect()
     assert edu.read_telemetry().battery == 100
 
@@ -54,7 +54,7 @@ def test_executor_runs_in_order_and_reports_failures():
     ex = FlightExecutor(lambda kind, job: events.append((kind, job.label)))
     ex.submit("a", lambda: None)
     ex.submit("bad", lambda: (_ for _ in ()).throw(BackendError("boom")))
-    ex.submit("exit", lambda: exit(1))  # what codrone_edu does when it cannot connect
+    ex.submit("exit", lambda: exit(1))
     ex.submit("c", lambda: None)
     assert wait_for(lambda: ("finished", "c") in events)
     kinds = [e for e in events if e[1] in ("bad", "exit")]
@@ -70,7 +70,6 @@ def test_executor_abort_cancels_queue_and_running_job():
     assert ex.abort() == 1
     assert wait_for(lambda: j1.state == "cancelled")
     assert j2.state == "cancelled"
-    # the executor is reusable afterwards
     j3 = ex.submit("after", lambda: None)
     assert wait_for(lambda: j3.state == "done")
     with pytest.raises(Aborted):
@@ -84,7 +83,7 @@ def test_mock_emergency_stop_interrupts_a_blocking_move():
     m.connect()
     m.flying = True
     ex = FlightExecutor()
-    job = ex.submit("slow", lambda: m.move(Direction.FORWARD, 1000))  # would take 100 s
+    job = ex.submit("slow", lambda: m.move(Direction.FORWARD, 1000))
     assert wait_for(lambda: job.state == "running")
     m.emergency_stop()
     assert wait_for(lambda: job.state == "failed", timeout=2)

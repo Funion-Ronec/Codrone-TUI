@@ -49,7 +49,7 @@ from .widgets.panels import (
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 THEMES = [
-    # EDU = cyan/amber, Simulator = violet/green: the two must never be mistaken for each other
+    # EDU = cyan/amber, sim = violet/green. these can never look alike or someone gonna mistake the real drone for the sim
     Theme(name="codrone-edu", primary="#4cc9f0", secondary="#f72585", accent="#ffb703", success="#06d6a0",
           warning="#ffd166", error="#ef476f", foreground="#dbe7f0", background="#0a0e13", surface="#10161d",
           panel="#16202b", dark=True),
@@ -62,7 +62,7 @@ THEMES = [
 ]
 CYCLE_AFTER_OWN = ["btop", "catppuccin-mocha", "tokyo-night", "gruvbox", "nord", "textual-light"]
 
-PANELS = {  # name -> (widget id, hotkey)
+PANELS = {
     "console": ("console-panel", "1"), "sidebar": ("sidebar", "2"), "telemetry": ("telemetry-panel", "3"),
     "processes": ("proc-panel", "4"), "map": ("map-panel", "5"), "score": ("score-panel", "6"),
     "meta": ("meta-panel", "7"),
@@ -188,7 +188,7 @@ class CodroneApp(App):
         self.demo = demo
         self.requested_theme = theme or self.cfg["ui"].get("theme") or None
         self.field_path = field_path
-        self.adc_store: Path | None = None  # where ADC attempt history is kept (default: logs/adc_attempts.json)
+        self.adc_store: Path | None = None
         self._ui_thread = threading.get_ident()
         self._started = time.time()
         self._layout = self.cfg["ui"].get("layout", "auto")
@@ -204,27 +204,26 @@ class CodroneApp(App):
             on_error=lambda m: self.ui(self.console_write, f"telemetry: {m}", "warn"),
         )
         self.shell = Shell(_AppHost(self))
-        self.adc = None  # set by adc_ui.attach() when the mission features load
+        self.adc = None
 
-    # ------------------------------------------------------------------ helpers
     def ui(self, fn, *args) -> None:
         """Run ``fn`` on the UI thread from any thread."""
         if threading.get_ident() == self._ui_thread:
             fn(*args)
-        elif self.is_running:  # a worker may report back after the app has already quit
+        elif self.is_running:
             try:
                 self.call_from_thread(fn, *args)
-            except Exception:  # noqa: BLE001 - raced with shutdown
+            except Exception:  # noqa: BLE001
                 pass
 
     @property
-    def console_panel(self) -> ConsolePanel:  # not `console`: App.console is Textual's Rich console
+    def console_panel(self) -> ConsolePanel:
         return self.query_one("#console-panel", ConsolePanel)
 
     def console_write(self, text: str, kind: str = "info") -> None:
         try:
             self.console_panel.write(text, kind)
-        except Exception:  # noqa: BLE001 - before mount / during shutdown
+        except Exception:  # noqa: BLE001
             return
         if kind == "error":
             self.errors_seen += 1
@@ -235,7 +234,6 @@ class CodroneApp(App):
             return "AUTO"
         return "INSERT" if isinstance(self.focused, Input) else "NORMAL"
 
-    # ------------------------------------------------------------------ layout
     def compose(self) -> ComposeResult:
         yield StatusBar(id="status")
         with Horizontal(id="main"):
@@ -253,7 +251,7 @@ class CodroneApp(App):
         for th in THEMES:
             self.register_theme(th)
         self.theme = self.requested_theme if self.requested_theme in self.available_themes else self.OWN_THEME
-        self.begin_capture_print(self, stdout=True, stderr=True)  # the vendor libraries print() a lot
+        self.begin_capture_print(self, stdout=True, stderr=True)
         self.title = f"{self.TITLE_TEXT} TUI"
         self.sub_title = "DEMO (mock drone)" if self.demo else ""
 
@@ -261,7 +259,7 @@ class CodroneApp(App):
         self._print_banner()
         if "_error" in self.cfg:
             self.console_write(f"config: {self.cfg['_error']} (using defaults)", "warn")
-        try:  # mission features are optional so the flight console still starts if they break
+        try:
             from . import adc_ui
 
             adc_ui.attach(self)
@@ -291,7 +289,6 @@ class CodroneApp(App):
         self.console_write(f"{self.TITLE_TEXT} TUI v{__version__}"
                            + ("  [DEMO: mock drone, nothing is flying]" if self.demo else ""), "ok")
 
-    # ---------------------------------------------------------------- sidebar
     def quick_sections(self) -> list[tuple[str, list[SideItem]]]:
         return [
             ("LINK", [SideItem("pair", "pair"), SideItem("status", "status"), SideItem("disconnect", "disconnect")]),
@@ -326,12 +323,11 @@ class CodroneApp(App):
         inp.action_end()
 
     def palette_run(self, cmd) -> None:
-        if cmd.usage.split()[0] == cmd.usage:  # takes no arguments: just run it
+        if cmd.usage.split()[0] == cmd.usage:
             self.shell.run_line(cmd.name)
         else:
             self.prefill(cmd.name + " ")
 
-    # ------------------------------------------------------------------ input
     def on_input_submitted(self, event: Input.Submitted) -> None:
         line = event.value.strip()
         event.input.value = ""
@@ -352,7 +348,6 @@ class CodroneApp(App):
             if text:
                 self.console_write(f"lib: {text}", "dim")
 
-    # -------------------------------------------------------------- connection
     def connect_backend(self, port: str | None) -> None:
         if self.backend.connected:
             self.console_write("already connected -- `disconnect` first", "warn")
@@ -377,13 +372,12 @@ class CodroneApp(App):
         self.backend.disconnect()
         self.console_write("disconnected", "warn")
 
-    # ------------------------------------------------------------- job feedback
     def _on_job_event(self, kind: str, job: Job) -> None:
         self.ui(self._job_event_ui, kind, job)
 
     def _job_event_ui(self, kind: str, job: Job) -> None:
         if job.label in ("pair",) and kind == "finished":
-            return  # on_connected already said it
+            return
         if kind == "finished":
             if job.elapsed >= 0.3:
                 self.console_write(f"✓ {job.label}  ({job.elapsed:.1f}s)", "ok")
@@ -396,7 +390,6 @@ class CodroneApp(App):
         except Exception:  # noqa: BLE001
             pass
 
-    # --------------------------------------------------------------- telemetry
     def on_telemetry(self, t: Telemetry) -> None:
         try:
             self.query_one("#telemetry-panel", TelemetryPanel).update_from(t, self.poller.series)
@@ -406,7 +399,7 @@ class CodroneApp(App):
                 view.set_pose(t.pos_cm[0], t.pos_cm[1], t.pos_cm[2], p.heading, estimated=False)
             else:
                 view.set_pose(p.x, p.y, p.z, p.heading, estimated=True)
-        except Exception:  # noqa: BLE001 - never let a draw error kill the sampler's callback
+        except Exception:  # noqa: BLE001
             pass
         if self.adc is not None:
             self.adc.on_telemetry(t)
@@ -414,7 +407,7 @@ class CodroneApp(App):
     def _tick(self) -> None:
         try:
             status = self.query_one("#status", StatusBar)
-        except Exception:  # noqa: BLE001 - timer fired after the screen was torn down (quitting)
+        except Exception:  # noqa: BLE001
             return
         pal = palette(self)
         b = self.backend
@@ -450,7 +443,7 @@ class CodroneApp(App):
         right.append(f"  {up // 60:02d}:{up % 60:02d}", style=pal["muted"])
 
         sig = (left.plain, right.plain, self.theme, self.size.width)
-        if sig != self._status_sig:  # most ticks nothing visible changed (only the uptime second does)
+        if sig != self._status_sig:
             self._status_sig = sig
             grid = Table.grid(expand=True)
             grid.add_column(ratio=1)
@@ -469,7 +462,6 @@ class CodroneApp(App):
         except Exception:  # noqa: BLE001
             pass
 
-    # ------------------------------------------------------------------ actions
     def action_estop(self) -> None:
         self.shell.run_line("estop", record=True)
 
@@ -503,7 +495,6 @@ class CodroneApp(App):
     async def action_quit(self) -> None:  # type: ignore[override]
         self.request_exit(True)
 
-    # ---------------------------------------------------------- theme / layout
     def set_theme_by_name(self, name: str | None) -> None:
         if not name:
             self.console_write("themes: " + ", ".join(sorted(self.available_themes)), "info")
@@ -518,7 +509,7 @@ class CodroneApp(App):
         wid = PANELS[name][0]
         try:
             return self.query_one(f"#{wid}")
-        except Exception:  # noqa: BLE001 - score panel exists only once mission features load
+        except Exception:  # noqa: BLE001
             return None
 
     def toggle_panel(self, name: str) -> None:
@@ -562,7 +553,6 @@ class CodroneApp(App):
         main = self.query_one("#main")
         main.display = any(c.display for c in main.children)
 
-    # ---------------------------------------------------------------------- exit
     def request_exit(self, land_first: bool) -> None:
         if self._exiting:
             return
@@ -587,6 +577,6 @@ class CodroneApp(App):
         self.executor.shutdown()
         try:
             self.backend.disconnect()
-        except BaseException:  # noqa: BLE001 - vendor code may call exit()
+        except BaseException:  # noqa: BLE001
             pass
         self.exit()

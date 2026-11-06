@@ -24,10 +24,8 @@ EDU_CAPS = frozenset(
     {Cap.TELEMETRY, Cap.POSITION, Cap.RANGE, Cap.VERTICAL, Cap.FLIP, Cap.SHAPES, Cap.LED,
      Cap.BUZZER, Cap.ESTOP, Cap.COLOR, Cap.TRIM}
 )
-# mirrors SimBackend.caps (the real simulator climbs via timed throttle bursts)
 SIM_CAPS = frozenset({Cap.RANGE, Cap.VERTICAL, Cap.LED, Cap.BUZZER, Cap.GRAB, Cap.TELEPORT})
 
-# distance of the pretend wall in front of the start point, for the range sensor
 WALL_X_CM = 450.0
 
 
@@ -47,13 +45,12 @@ class MockBackend(DroneBackend):
         self._battery = 100.0
         self._t0 = time.time()
         self._interrupt = threading.Event()
-        self.log: list[tuple] = []  # every command received, for assertions in tests
-        self.fail_next: str | None = None  # set to a command name to make it raise once
+        self.log: list[tuple] = []
+        self.fail_next: str | None = None
         self._rng = random.Random(7)
         self.led = (0, 0, 0, 0)
         self.holding = False
 
-    # ----------------------------------------------------------------- lifecycle
     def connect(self, port: str | None = None) -> str:
         if self.fail_next == "connect":
             self.fail_next = None
@@ -71,7 +68,6 @@ class MockBackend(DroneBackend):
     def connected(self) -> bool:
         return self._connected
 
-    # ------------------------------------------------------------------- helpers
     def _check(self, name: str) -> None:
         if not self._connected:
             raise BackendError("not connected")
@@ -86,7 +82,6 @@ class MockBackend(DroneBackend):
             raise BackendError("interrupted by emergency stop")
         self._battery = max(0.0, self._battery - 0.02 * seconds)
 
-    # ------------------------------------------------------------------- flight
     def takeoff(self) -> None:
         self._check("takeoff")
         self.log.append(("takeoff",))
@@ -135,14 +130,12 @@ class MockBackend(DroneBackend):
         self._check("go")
         self.log.append(("go", roll, pitch, yaw, throttle, seconds))
         self._wait(seconds)
-        # crude: full stick = speed_cm_s, positive pitch = forward, positive roll = right
         s = self.speed_cm_s * seconds / 100.0
         self.pose.apply_move(Direction.FORWARD, pitch * s)
         self.pose.apply_move(Direction.RIGHT, roll * s)
         self.pose.apply_move(Direction.UP, throttle * s)
         self.pose.apply_turn(yaw * seconds * 0.9)
 
-    # --------------------------------------------------- optional capabilities
     def flip(self, direction: str = "back") -> None:
         self.require(Cap.FLIP, "flip")
         self._check("flip")
@@ -184,7 +177,6 @@ class MockBackend(DroneBackend):
         self.pose.x, self.pose.y, self.pose.z = x, y, z
         self.log.append(("teleport", x, y, z))
 
-    # --------------------------------------------------------------- telemetry
     def read_telemetry(self) -> Telemetry:
         if not self._connected:
             raise BackendError("not connected")

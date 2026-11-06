@@ -28,5 +28,5 @@ def square_lap(ctx):
 @routine("example: cube then pad", "Fly through the large cube (field.toml) and land on the pad.")
 def cube_then_pad(ctx):
     ctx.takeoff()
-    ctx.through("large_cube")  # lines up, flies through, claims the 25 points
-    ctx.land_on("pad")  # flies over the pad from field.toml and lands, claiming the landing
+    ctx.through("large_cube")
+    ctx.land_on("pad")

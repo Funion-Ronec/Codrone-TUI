@@ -12,7 +12,6 @@ from codrone_tui.backend.edu import EduBackend
 from codrone_tui.backend.sim import SimBackend
 
 
-# ----------------------------------------------------------------------------- simulator
 class FakeSimServer:
     """Answers get_front_range / get_bottom_range like the Unity simulator, records the rest."""
 
@@ -57,7 +56,7 @@ def sim_server():
 
 
 def test_sim_connect_probe_and_telemetry(sim_server):
-    b = SimBackend(cm_per_s=10000)  # make estimated sleeps negligible
+    b = SimBackend(cm_per_s=10000)
     assert b.connect(f"127.0.0.1:{sim_server.port}") == f"127.0.0.1:{sim_server.port}"
     t = b.read_telemetry()
     assert t.front_range_cm == 123.5 and t.bottom_range_cm == 42.0
@@ -100,7 +99,7 @@ def test_sim_move_requires_flight_and_updates_pose(sim_server):
 
 def test_sim_emergency_stop_sends_land_and_never_raises(sim_server):
     b = SimBackend()
-    b.emergency_stop()  # not connected: must not raise
+    b.emergency_stop()
     b.connect(f"127.0.0.1:{sim_server.port}")
     b.flying = True
     b.emergency_stop()
@@ -114,11 +113,10 @@ def test_sim_capabilities():
     assert b.has(Cap.GRAB) and b.has(Cap.TELEPORT) and not b.has(Cap.FLIP) and not b.has(Cap.TELEMETRY)
 
 
-# --------------------------------------------------------------------------------- EDU
 class FakeEduDrone:
     """Behaves like the vendor class where it matters to us."""
 
-    mode = "ok"  # ok | exit | not_ready
+    mode = "ok"
 
     def __init__(self, **kwargs):
         from codrone_tui.backend.edu import load_edu_lib
@@ -128,7 +126,7 @@ class FakeEduDrone:
         self.transfer = lambda h, d: None
         self.state_data = [0, None, lib.ModeFlight.Ready, None, None, None, 87, lib.ModeMovement.Hovering, 2]
         self.position_data = [0, 0.5, -0.25, 1.0]
-        self.range_data = [0, 1200, -1000]  # mm; -1000 = no reading
+        self.range_data = [0, 1200, -1000]
         self.motion_data = [0, 5, -3, -98, 1, 2, 3, 4, -5, 90]
         self.flow_data = [0, 0.1, -0.2]
         self.altitude_data = [0, 29.5, 101200.0, 3.0, 1.0]
@@ -138,10 +136,10 @@ class FakeEduDrone:
 
     def pair(self, port=None):
         if FakeEduDrone.mode == "exit":
-            exit()  # what the vendor library does
+            exit()
         if FakeEduDrone.mode == "not_ready":
             self.state_data[2] = self.lib.ModeFlight.None_
-        return True  # the vendor returns True even when the drone is off
+        return True
 
     def get_state_data(self, delay=0.01):
         return self.state_data
@@ -188,11 +186,10 @@ def test_importing_the_vendor_lib_does_not_break_asyncio_sleep():
 
     from codrone_tui.backend.edu import load_edu_lib
 
-    sys.modules.pop("codrone_edu.drone", None)  # force the vendor import (and its patch) to run again
+    sys.modules.pop("codrone_edu.drone", None)
     lib = load_edu_lib()
     assert asyncio.sleep is asyncio.tasks.sleep
     asyncio.run(asyncio.sleep(0))
-    # ... and even the vendor's own patched function (alive during the import window) must not blow up
     asyncio.run(lib.interruptible_sleep(0.01))
 
 
@@ -210,7 +207,7 @@ def test_vendor_lib_loads_from_a_background_thread_while_a_loop_sleeps():
 
     async def ui_loop():
         while not done.is_set():
-            await asyncio.sleep(0.001)  # would raise NameError if the vendor's patch leaked
+            await asyncio.sleep(0.001)
 
     asyncio.run(ui_loop())
     assert asyncio.sleep is asyncio.tasks.sleep
@@ -252,10 +249,10 @@ def test_edu_telemetry_unit_conversion(edu, monkeypatch):
     monkeypatch.setattr("codrone_tui.backend.edu.time.sleep", lambda s: None)
     t = edu.read_telemetry()
     assert t.battery == 87 and t.flight_state == "Ready"
-    assert t.front_range_cm == 120.0 and t.bottom_range_cm is None  # mm -> cm, -1000 -> None
+    assert t.front_range_cm == 120.0 and t.bottom_range_cm is None
     assert t.wall_detected is False
-    assert t.pos_cm == (50.0, -25.0, 100.0)  # metres -> cm
-    assert t.accel == (0.5, -0.3, -9.8)  # raw is m/s^2 x 10
+    assert t.pos_cm == (50.0, -25.0, 100.0)
+    assert t.accel == (0.5, -0.3, -9.8)
     assert t.angles_deg == (4.0, -5.0, 90.0)
     assert t.flow_cm_s == (10.0, -20.0)
     assert t.pos_is_estimate is False
@@ -265,10 +262,10 @@ def test_edu_takeoff_takes_hover_height_from_the_range_sensor(edu, monkeypatch):
     """Otherwise pose.z stays 0 and a routine's goto(z=80) would climb a further 80 cm."""
     monkeypatch.setattr("codrone_tui.backend.edu.time.sleep", lambda s: None)
     edu.connect()
-    edu._drone.range_data[2] = 900  # mm
+    edu._drone.range_data[2] = 900
     edu.takeoff()
     assert edu.pose.z == pytest.approx(90.0)
-    edu._drone.range_data[2] = -1000  # sensor has no reading
+    edu._drone.range_data[2] = -1000
     edu.takeoff()
     assert edu.pose.z == 100.0
 
@@ -285,7 +282,7 @@ def test_sim_takeoff_takes_hover_height_from_the_bottom_range(sim_server):
 def test_edu_turn_convention_and_pose(edu):
     edu.connect()
     edu.flying = True
-    edu.turn(90)  # ours: clockwise-positive -> vendor turn_right
+    edu.turn(90)
     edu.turn(-30)
     assert ("right", 90) in edu._drone.sent and ("left", 30) in edu._drone.sent
     assert edu.pose.heading == 60
@@ -303,10 +300,10 @@ def test_edu_flip_refuses_low_battery(edu):
 
 
 def test_edu_emergency_stop_never_raises(edu):
-    edu.emergency_stop()  # not connected
+    edu.emergency_stop()
     edu.connect()
     edu._drone.emergency_stop = lambda: (_ for _ in ()).throw(SystemExit(1))
-    edu.emergency_stop()  # even a SystemExit from the library is swallowed
+    edu.emergency_stop()
     assert not edu.flying
 
 
@@ -325,7 +322,6 @@ def test_edu_transfer_is_serialised(edu):
         with guard:
             inside -= 1
 
-    # re-wrap a slow transfer the same way connect() does
     edu._wrap_transfer(type("D", (), {"transfer": staticmethod(slow)})())
     d = type("D", (), {"transfer": staticmethod(slow)})()
     edu._wrap_transfer(d)

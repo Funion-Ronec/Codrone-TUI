@@ -10,8 +10,7 @@ from typing import Iterable
 
 from ..backend.base import Telemetry
 
-# Team default only, NOT an RECF number: the manual (2.1.2) just says a drone showing a low
-# battery level is not allowed to launch, without giving a percentage.
+# just our team default, NOT a RECF number. manual (2.1.2) only says a low battery drone cant launch, no percent given
 DEFAULT_MIN_BATTERY = 40
 
 
@@ -19,8 +18,8 @@ DEFAULT_MIN_BATTERY = 40
 class PreflightItem:
     key: str
     label: str
-    manual_ref: str  # manual section, "" when it is a TUI sanity check rather than a rule
-    auto: bool  # True = verified from telemetry, False = a person must confirm
+    manual_ref: str
+    auto: bool
 
 
 ITEMS: tuple[PreflightItem, ...] = (
@@ -40,7 +39,7 @@ ITEMS: tuple[PreflightItem, ...] = (
 @dataclass(frozen=True)
 class PreflightResult:
     item: PreflightItem
-    status: str  # "pass" | "fail" | "todo"
+    status: str
     detail: str = ""
 
 

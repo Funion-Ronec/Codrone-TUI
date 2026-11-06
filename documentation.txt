@@ -175,6 +175,7 @@ FILES
     legacy/Codrone-TUI.draft.py                the original single-file draft, untouched
     legacy/requirements.old.txt                the 16 packages the venv used to have (PyQt5, pyautogui, ... unused)
     tests/                                     python -m pytest -q   (161 tests, ~40 s; no hardware needed)
+    docs/DEVELOPMENT.md                        developer notes (units, vendor quirks, tuning constants)
 
 SETUP FROM SCRATCH
 ------------------

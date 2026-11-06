@@ -66,7 +66,7 @@ def test_app_starts_and_connects(kind, tmp_path):
             assert app.backend.connected
             assert app.errors_seen == 0
             assert app.title.startswith("CoDrone")
-            await pilot.pause(0.5)  # a few ticks + telemetry samples without errors
+            await pilot.pause(0.5)
             assert app.poller.samples > 0 and app.poller.errors == 0
 
     run(go())
@@ -90,13 +90,12 @@ def test_command_flow_and_history(tmp_path):
         app = make("edu", tmp_path)
         async with app.run_test(size=(160, 48)) as pilot:
             await wait_for(pilot, lambda: app.backend.connected)
-            await type_line(pilot, "takeoff", real=True)  # genuine keystrokes through the Input widget
+            await type_line(pilot, "takeoff", real=True)
             for line in ("forward 50", "tr 90", "land"):
                 await type_line(pilot, line)
             assert await wait_for(pilot, lambda: ("land",) in app.backend.log)
             ops = [c[0] for c in app.backend.log if c[0] in ("takeoff", "move", "turn", "land")]
             assert ops == ["takeoff", "move", "turn", "land"]
-            # up-arrow recalls the previous command
             await pilot.press("up")
             assert app.console_panel.input.value == "land"
 
@@ -111,10 +110,10 @@ def test_estop_key_works_even_while_typing(tmp_path):
             await pilot.press("i")
             for ch in "forw":
                 await pilot.press(ch)
-            await pilot.press("ctrl+x")  # priority binding: must beat the Input's own ctrl+x (cut)
+            await pilot.press("ctrl+x")  # priority binding, gotta beat the Input's own ctrl+x (cut) or estop dont work while typing
             assert await wait_for(pilot, lambda: ("emergency_stop",) in app.backend.log)
             assert "EMERGENCY STOP" in log_text(app)
-            await pilot.press("ctrl+l")  # urgent land is also a priority key
+            await pilot.press("ctrl+l")
             await pilot.pause(0.2)
             assert "not connected" not in log_text(app)
 
@@ -154,7 +153,7 @@ def test_panel_toggles_layouts_theme_and_help(tmp_path):
             await type_line(pilot, "theme nonsense")
             assert "no theme 'nonsense'" in log_text(app)
 
-            await pilot.press("escape")  # leave input -> NORMAL
+            await pilot.press("escape")
             assert app.mode == "NORMAL"
             await pilot.press("question_mark")
             assert isinstance(app.screen, HelpScreen)
@@ -185,12 +184,12 @@ def test_timed_match_with_routine_then_finish(tmp_path):
             await type_line(pilot, "mission run takeoff_land -m")
             assert await wait_for(pilot, lambda: app.adc.match.state == "running")
             assert await wait_for(pilot, lambda: not app.adc.running and not app.backend.flying)
-            assert app.adc.scorecard.total >= 5  # the routine claimed its takeoff
+            assert app.adc.scorecard.total >= 5
             await type_line(pilot, "match finish pad")
             m = app.adc.match
             assert m.state == "finished" and len(m.attempts) == 1 and m.best_score >= 10
             data = json.loads((tmp_path / "adc.json").read_text(encoding="utf-8"))
-            assert data  # attempt history was persisted
+            assert data
 
     run(go())
 
@@ -201,7 +200,7 @@ def test_manual_credit_undo_and_spiral(tmp_path):
         async with app.run_test(size=(160, 48)) as pilot:
             await pilot.pause(0.3)
             await type_line(pilot, "credit mini1 mini2 mini3")
-            assert app.adc.scorecard.total == 15 * 3 + 10  # three minis + auto spiral bonus
+            assert app.adc.scorecard.total == 15 * 3 + 10
             await type_line(pilot, "undo")
             assert app.adc.scorecard.total == 15 * 2
             await type_line(pilot, "credit bogus")
@@ -228,7 +227,7 @@ def test_mission_refuses_when_unsafe(tmp_path):
 def test_real_edu_hardware_asks_for_confirmation(tmp_path):
     async def go():
         app = make("edu", tmp_path)
-        app.demo = False  # pretend the backend is the real drone, to exercise the safety dialog
+        app.demo = False
         async with app.run_test(size=(160, 48)) as pilot:
             await wait_for(pilot, lambda: app.backend.connected)
             await type_line(pilot, "mission run takeoff_land")
@@ -280,14 +279,14 @@ def test_safety_net_lands_a_drone_left_airborne():
     safety_net(b)
     assert ("land",) in b.log and not b.connected
 
-    class Stubborn(MockBackend):  # the vendor library may exit() instead of raising
+    class Stubborn(MockBackend):
         def land(self):
             raise SystemExit(1)
 
     s = Stubborn("edu")
     s.connect()
     s.flying = True
-    safety_net(s)  # must not propagate
+    safety_net(s)
 
 
 def test_help_command_in_app_lists_mission_commands(tmp_path):

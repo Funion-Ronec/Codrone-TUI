@@ -29,7 +29,7 @@ class Host:
     backend: DroneBackend
     executor: FlightExecutor
 
-    def out(self, text: str, kind: str = "info") -> None: ...  # kinds: info ok warn error dim cmd
+    def out(self, text: str, kind: str = "info") -> None: ...
     def clear_console(self) -> None: ...
     def connect_backend(self, port: str | None) -> None: ...
     def disconnect_backend(self) -> None: ...
@@ -53,9 +53,9 @@ class Command:
     summary: str
     group: str = "general"
     aliases: tuple[str, ...] = ()
-    requires: Cap | None = None  # capability the backend must have
-    needs_link: bool = False  # refuse when not connected
-    flight: bool = False  # informational: handler queues work on the executor
+    requires: Cap | None = None
+    needs_link: bool = False
+    flight: bool = False
 
 
 def split_args(tokens: list[str]) -> tuple[list[str], set[str]]:
@@ -88,7 +88,7 @@ DIRECTION_WORDS = {
     "down": Direction.DOWN, "d": Direction.DOWN,
 }
 MAX_MOVE_CM = 1000.0
-LOG_DIR = PROJECT_ROOT / "logs"  # absolute, so the log lands in the project even if launched from elsewhere
+LOG_DIR = PROJECT_ROOT / "logs"
 
 
 class Shell:
@@ -103,7 +103,6 @@ class Shell:
         self.extra_completions: dict[str, Callable[[], list[str]]] = {}
         _register_builtins(self)
 
-    # ------------------------------------------------------------------ registry
     @property
     def backend(self) -> DroneBackend:
         return self.host.backend
@@ -120,7 +119,6 @@ class Shell:
     def available(self, cmd: Command) -> bool:
         return cmd.requires is None or self.backend.has(cmd.requires)
 
-    # --------------------------------------------------------------------- output
     def out(self, text: str, kind: str = "info") -> None:
         self.host.out(text, kind)
 
@@ -138,7 +136,6 @@ class Shell:
         finally:
             self._tls.inline = False
 
-    # ------------------------------------------------------------------ execution
     def run_line(self, line: str, *, record: bool = True) -> None:
         line = line.strip()
         if not line or line.startswith("#"):
@@ -171,7 +168,7 @@ class Shell:
             self.out(str(exc), "warn")
         except BackendError as exc:
             self.out(str(exc), "error")
-        except Exception as exc:  # noqa: BLE001 - a typo must never crash the console
+        except Exception as exc:  # noqa: BLE001
             self.out(f"{type(exc).__name__}: {exc}", "error")
 
     def _log(self, line: str) -> None:
@@ -182,9 +179,8 @@ class Shell:
             with self.log_path.open("a", encoding="utf-8") as fh:
                 fh.write(f"{time.strftime('%H:%M:%S')}  {line}\n")
         except OSError:
-            self._log_failed = True  # read-only folder etc.: keep running, stop trying
+            self._log_failed = True
 
-    # ----------------------------------------------------------------- completion
     def complete(self, text: str) -> str | None:
         """Best single completion for the text typed so far (used by the input suggester)."""
         if not text or text.endswith("  "):
@@ -221,7 +217,6 @@ class Shell:
         return None
 
 
-# --------------------------------------------------------------------------- handlers
 def h_help(sh: Shell, pos, flags) -> None:
     if pos:
         cmd = sh.lookup(pos[0])
@@ -248,7 +243,7 @@ def h_clear(sh: Shell, pos, flags) -> None:
 
 
 def h_echo(sh: Shell, pos, flags) -> None:
-    sh.out(" ".join(pos), "info")  # plain text: the draft piped this through os.system(), i.e. a shell
+    sh.out(" ".join(pos), "info")  # plain text only, the old draft ran this thru os.system() which is a damn shell
 
 
 def h_cat(sh: Shell, pos, flags) -> None:
@@ -298,8 +293,6 @@ def h_takeoff(sh: Shell, pos, flags) -> None:
 
 
 def h_land(sh: Shell, pos, flags) -> None:
-    # Plain `land` queues in order like any other command. `-e` is the urgent form: it drops
-    # everything planned (and stops a running mission between steps), then comes down.
     if "e" in flags:
         dropped = sh.host.executor.abort()
         if dropped:
@@ -479,11 +472,9 @@ def h_source(sh: Shell, pos, flags) -> None:
     if any(shlex.split(ln)[0].lower() in ("source", "exit", "quit") for ln in lines):
         raise UsageError("scripts may not contain source / exit / quit")
     sh.out(f"running {len(lines)} step(s) from {pos[0]}", "ok")
-    # One queued job runs the whole script, executing each line in place so that instant
-    # commands (echo, status) and flight commands stay in the order they were written.
     def run_script() -> None:
         for ln in lines:
-            sh.host.executor.check()  # `stop` / `land` cancels the rest of the script
+            sh.host.executor.check()
             sh.run_inline(ln)
 
     sh.fly(f"script {pos[0]}", run_script)

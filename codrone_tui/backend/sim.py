@@ -30,7 +30,7 @@ from .base import (
 
 DEFAULT_ADDR = ("127.0.0.1", 5000)
 QUERY_TIMEOUT_S = 1.0
-DEFAULT_HOVER_CM = 100.0  # assumed hover height if the downward range query fails
+DEFAULT_HOVER_CM = 100.0
 
 
 class SimBackend(DroneBackend):
@@ -41,14 +41,13 @@ class SimBackend(DroneBackend):
     def __init__(self, verify: bool = True, cm_per_s: float = 80.0, vertical_cm_per_s: float = 60.0) -> None:
         super().__init__()
         self.verify = verify
-        self.cm_per_s = cm_per_s  # estimated speed at speed=1, used only to pace sleeps
-        self.vertical_cm_per_s = vertical_cm_per_s  # estimated climb rate at throttle 50
+        self.cm_per_s = cm_per_s
+        self.vertical_cm_per_s = vertical_cm_per_s
         self._drone = None
         self._addr = DEFAULT_ADDR
         self._query_lock = threading.Lock()
         self._connected = False
 
-    # ----------------------------------------------------------------- lifecycle
     def connect(self, port: str | None = None) -> str:
         """``port`` may be ``"host:port"`` to reach a simulator on another machine."""
         try:
@@ -59,7 +58,7 @@ class SimBackend(DroneBackend):
         addr = self._parse_addr(port)
         try:
             drone = lib.Drone()
-            if addr != DEFAULT_ADDR:  # the vendor class hard-codes localhost:5000
+            if addr != DEFAULT_ADDR:
                 drone._socket.close()
                 drone._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 drone._socket.connect(addr)
@@ -91,7 +90,7 @@ class SimBackend(DroneBackend):
         if not port:
             return DEFAULT_ADDR
         host, _, p = port.rpartition(":")
-        if not host:  # "5001" -> localhost on that port
+        if not host:
             host, p = DEFAULT_ADDR[0], port
         try:
             return host, int(p)
@@ -115,7 +114,6 @@ class SimBackend(DroneBackend):
     def connected(self) -> bool:
         return self._connected and self._drone is not None
 
-    # ------------------------------------------------------------------- helpers
     @property
     def _d(self):
         if not self.connected:
@@ -134,7 +132,7 @@ class SimBackend(DroneBackend):
         with self._query_lock:
             sock = d._socket
             try:
-                while select.select([sock], [], [], 0)[0]:  # drop late replies from earlier timeouts
+                while select.select([sock], [], [], 0)[0]:
                     sock.recvfrom(4096)
                 sock.send(message.encode())
                 return sock.recvfrom(size)[0]
@@ -152,12 +150,11 @@ class SimBackend(DroneBackend):
     def _sleep(self, seconds: float) -> None:
         time.sleep(max(0.0, seconds))
 
-    # ------------------------------------------------------------------- flight
     def takeoff(self) -> None:
-        self._d.takeoff()  # the library sleeps 1 s itself
+        self._d.takeoff()
         self.flying = True
         self.pose.x = self.pose.y = 0.0
-        try:  # real hover height from the simulator's downward range query (see EduBackend._sync_height)
+        try:
             z = self._float_query("get_bottom_range")
             self.pose.z = z if z >= 0 else DEFAULT_HOVER_CM
         except BackendError:
@@ -165,7 +162,7 @@ class SimBackend(DroneBackend):
 
     def land(self) -> None:
         self._d.land()
-        self._sleep(1.5)  # land() returns immediately; give the descent time
+        self._sleep(1.5)
         self.flying = False
         self.pose.z = 0.0
 
@@ -177,7 +174,7 @@ class SimBackend(DroneBackend):
             return
         try:
             d._send_to_server("land")
-        except BaseException:  # noqa: BLE001 - must never raise, from any thread
+        except BaseException:  # noqa: BLE001 - estop must never raise, no matter what thread call it
             pass
 
     def hover(self, seconds: float = 1.0) -> None:
@@ -194,7 +191,7 @@ class SimBackend(DroneBackend):
         if direction in (Direction.UP, Direction.DOWN):
             sign = 1 if direction is Direction.UP else -1
             seconds = dist / self.vertical_cm_per_s
-            d.go(0, 0, 0, sign * 50, seconds)  # blocks for `seconds` itself
+            d.go(0, 0, 0, sign * 50, seconds)
         else:
             {
                 Direction.FORWARD: d.move_forward,
@@ -210,14 +207,13 @@ class SimBackend(DroneBackend):
         deg = float(degrees)
         if abs(deg) < 1:
             return
-        (self._d.turn_right if deg > 0 else self._d.turn_left)(abs(int(round(deg))))  # sleeps its own timeout
+        (self._d.turn_right if deg > 0 else self._d.turn_left)(abs(int(round(deg))))
         self.pose.apply_turn(deg)
 
     def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
         """Raw sticks in the simulator's native directions. Does not update the dead-reckoned pose."""
         self._d.go(int(roll), int(pitch), int(yaw), int(throttle), float(seconds))
 
-    # --------------------------------------------------- optional capabilities
     def set_led(self, r: int, g: int, b: int, brightness: int = 255) -> None:
         self._d.set_drone_LED(int(r), int(g), int(b), int(brightness))
 
@@ -242,7 +238,6 @@ class SimBackend(DroneBackend):
         self.pose.reset()
         self.flying = False
 
-    # --------------------------------------------------------------- telemetry
     def read_telemetry(self) -> Telemetry:
         if not self.connected:
             raise BackendError("not connected")
@@ -251,7 +246,7 @@ class SimBackend(DroneBackend):
         valid = lambda v: None if v is None or v < 0 else round(v, 1)  # noqa: E731
         front, bottom = valid(front), valid(bottom)
         return Telemetry(
-            flight_state="Flight" if self.flying else "Ready",  # our own flag, not read from the sim
+            flight_state="Flight" if self.flying else "Ready",
             front_range_cm=front,
             bottom_range_cm=bottom,
             wall_detected=None if front is None else front < 50,

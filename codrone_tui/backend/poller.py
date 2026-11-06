@@ -61,7 +61,7 @@ class TelemetryPoller:
                     self.samples += 1
                     if self.on_sample:
                         self.on_sample(t)
-                except BaseException as exc:  # includes SystemExit from the vendor library
+                except BaseException as exc:  # BaseException on purpose, vendor lib can throw SystemExit
                     self.errors += 1
                     msg = f"{type(exc).__name__}: {exc}"
                     if msg != last_error and self.on_error:

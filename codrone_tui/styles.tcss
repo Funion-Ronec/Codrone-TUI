@@ -1,5 +1,3 @@
-/* Layout: rovr-style bordered panels arranged like btop's boxes. */
-
 Screen {
     layout: vertical;
     background: $background;

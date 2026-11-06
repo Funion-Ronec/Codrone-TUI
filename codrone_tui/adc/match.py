@@ -22,10 +22,10 @@ class MatchError(RuntimeError):
 class AttemptResult:
     number: int
     score: int
-    duration: float  # seconds actually flown, capped at MATCH_SECONDS
+    duration: float
     resets: int
     breakdown: dict[str, int] = field(default_factory=dict)
-    expired: bool = False  # True when the 180 s clock ended it
+    expired: bool = False
     landing: str | None = None
 
 
@@ -54,7 +54,6 @@ class MatchController:
         self._started_at = 0.0
         self._ended_after = 0.0
 
-    # ------------------------------------------------------------------ queries
     @property
     def attempts(self) -> list[AttemptResult]:
         return list(self._attempts)
@@ -90,7 +89,6 @@ class MatchController:
     def last_result(self) -> AttemptResult | None:
         return self._attempts[-1] if self._attempts else None
 
-    # -------------------------------------------------------------- transitions
     def start(self) -> Scorecard:
         if self.state == "running":
             raise MatchError("a match is already running")
@@ -161,7 +159,6 @@ class MatchController:
             self.save()
         return result
 
-    # -------------------------------------------------------------- persistence
     def save(self) -> bool:
         payload = {
             "version": 1,

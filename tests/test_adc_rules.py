@@ -27,7 +27,7 @@ def test_scoring_table_matches_manual():
         "yellow_keyhole": (20, 2), "large_cube": (25, 2), "mini_1": (15, 2), "mini_2": (15, 2),
         "mini_3": (15, 2), "spiral_bonus": (10, 2), "tunnel": (15, 2),
     }
-    assert list(TASKS) == list(expected)  # same order as the manual's table
+    assert list(TASKS) == list(expected)
     assert {k: (t.points, t.max_count) for k, t in TASKS.items()} == expected
     assert {k: t.points for k, t in LANDINGS.items()} == {"landing_pad": 5, "landing_cube": 10, "landing_bullseye": 15}
 
@@ -78,9 +78,9 @@ def test_spiral_bonus_awarded_for_ordered_minis():
 @pytest.mark.parametrize(
     "keys",
     [
-        ("mini_2", "mini_1", "mini_3"),  # wrong order
-        ("mini_1", "mini_3"),  # skipped one
-        ("mini_1", "mini_2", "tunnel", "mini_3"),  # another scoring task in between
+        ("mini_2", "mini_1", "mini_3"),
+        ("mini_1", "mini_3"),
+        ("mini_1", "mini_2", "tunnel", "mini_3"),
         ("mini_1", "red_arch", "mini_2", "mini_3"),
         ("mini_3",),
     ],
@@ -93,11 +93,11 @@ def test_spiral_needs_strict_order_without_interruption(keys):
 
 def test_spiral_ignores_earlier_unrelated_tasks_and_repeats_up_to_cap():
     card = Scorecard()
-    run(card, "takeoff", "red_arch", "mini_1", "mini_2", "mini_3")  # tasks BEFORE the run are fine
+    run(card, "takeoff", "red_arch", "mini_1", "mini_2", "mini_3")
     assert card.count("spiral_bonus") == 1
-    run(card, "mini_1", "mini_2", "mini_3")  # second pass, bonus not yet maxed
+    run(card, "mini_1", "mini_2", "mini_3")
     assert card.count("spiral_bonus") == 2
-    run(card, "mini_1")  # minis are capped at 2 each now
+    run(card, "mini_1")
     assert not card.credit("mini_3").ok
     assert card.count("spiral_bonus") == 2
 
@@ -114,7 +114,6 @@ def test_second_spiral_is_the_last_possible_one():
     run(card, "mini_1", "mini_2", "mini_3", "mini_1", "mini_2")
     res = card.credit("mini_3")
     assert res.ok and res.auto == ["spiral_bonus"] and "+10 spiral bonus" in res.message
-    # the minis are capped at 2 each, so a third spiral cannot even start
     assert [card.credit(k).ok for k in ("mini_1", "mini_2", "mini_3")] == [False, False, False]
     assert card.count("spiral_bonus") == 2
 
@@ -125,7 +124,6 @@ def test_undo_removes_trigger_and_auto_bonus_together():
     res = card.undo()
     assert res.ok and res.points == -25 and res.auto == ["spiral_bonus"]
     assert card.total == 30 and card.count("mini_3") == 0 and card.count("spiral_bonus") == 0
-    # redoing mini_3 earns the bonus again
     assert card.credit("mini_3").auto == ["spiral_bonus"]
 
 
@@ -141,13 +139,13 @@ def test_landing_is_one_replaceable_slot():
     card = Scorecard()
     assert card.set_landing("landing_pad").points == 5
     res = card.set_landing("landing_bullseye")
-    assert res.points == 10  # 15 - 5: replaced, not added
+    assert res.points == 10
     assert card.total == 15 and card.landing == "landing_bullseye"
     assert card.remaining("landing_pad") == 0
     assert card.set_landing(None).points == -15 and card.total == 0
     assert card.remaining("landing_pad") == 1
     assert not card.set_landing("landing_roof").ok
-    assert card.credit("landing_cube").ok and card.total == 10  # credit() routes landing keys
+    assert card.credit("landing_cube").ok and card.total == 10
 
 
 def test_perfect_match_is_exactly_290():

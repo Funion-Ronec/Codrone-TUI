@@ -51,13 +51,13 @@ def test_layout_matches_the_manual_geometry():
     f = default_field()
     e = f.elements
     assert e["red_arch"].x < e["landing_pad"].x < e["green_keyhole"].x < e["large_cube"].x < e["blue_arch"].x
-    assert {e[n].heading for n in ("blue_arch", "yellow_keyhole")} == {90.0}  # leg 2 runs to the right
-    assert e["blue_arch"].y > e["yellow_keyhole"].y > e["tunnel"].y  # ... away from the corner, -y
+    assert {e[n].heading for n in ("blue_arch", "yellow_keyhole")} == {90.0}
+    assert e["blue_arch"].y > e["yellow_keyhole"].y > e["tunnel"].y
     assert e["mini_1"].heading == e["mini_2"].heading == e["mini_3"].heading == 270.0
-    assert [e[f"mini_{i}"].z for i in (1, 2, 3)] == sorted(e[f"mini_{i}"].z for i in (1, 2, 3))  # lowest -> top
+    assert [e[f"mini_{i}"].z for i in (1, 2, 3)] == sorted(e[f"mini_{i}"].z for i in (1, 2, 3))
     assert e["tunnel"].vertical and not any(el.vertical for n, el in e.items() if n != "tunnel")
     assert (e["red_arch"].width, e["red_arch"].height) == (pytest.approx(152.4, abs=0.1), pytest.approx(160.0, abs=0.1))
-    assert e["green_keyhole"].width == pytest.approx(61.0, abs=0.1)  # 24 in inner diameter
+    assert e["green_keyhole"].width == pytest.approx(61.0, abs=0.1)
     assert (e["large_cube"].width, e["large_cube"].height) == (pytest.approx(43.2, abs=0.1), pytest.approx(50.8, abs=0.1))
     assert (e["landing_pad"].width, e["bullseye"].width) == (pytest.approx(76.2, abs=0.1), pytest.approx(25.4, abs=0.1))
     assert (e["tunnel"].width, e["tunnel"].height) == (pytest.approx(59.7, abs=0.1), pytest.approx(48.3, abs=0.1))
@@ -87,7 +87,7 @@ def test_load_good_file(tmp_path):
     assert (el.x, el.y, el.z, el.heading, el.width, el.height, el.kind) == (100.0, -5.5, 90.0, 0.0, 30.0, 40.0, "arch")
     assert cfg.source == str(path)
     assert not any("calibrated" in w for w in cfg.warnings())
-    assert any("missing" in w and "tunnel" in w for w in cfg.warnings())  # only one element defined
+    assert any("missing" in w and "tunnel" in w for w in cfg.warnings())
 
 
 def test_calibrated_must_be_a_real_boolean(tmp_path):
@@ -107,7 +107,7 @@ def test_toml_round_trip(tmp_path):
     assert again.calibrated and again.notes == cfg.notes
     assert again.elements == cfg.elements
     assert again.spiral_order == cfg.spiral_order
-    tomllib.loads(cfg.to_toml())  # valid TOML
+    tomllib.loads(cfg.to_toml())
 
 
 def test_bad_toml_falls_back_with_a_reason(tmp_path):

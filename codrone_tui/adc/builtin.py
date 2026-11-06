@@ -1,4 +1,3 @@
-# field layout in field.toml.
 """
 semgents end by landing in place (no landing points) so each can be test flown on its own;
 full_run is the only one that goes for the bullseye. like all of them are only as good as the
@@ -9,24 +8,21 @@ from __future__ import annotations
 
 from .routine import Routine, RoutineContext, routine
 
-LAP_MARGIN_S = 30.0  # time kept in hand after a lap: fly back to the start lane + land on the bullseye
+LAP_MARGIN_S = 30.0
 
 
 def _phase1(ctx: RoutineContext) -> None:
-    # Red arch -> green keyhole -> large cube (manual 3.1.8)
     ctx.through("red_arch")
     ctx.through("green_keyhole")
     ctx.through("large_cube")
 
 
 def _spiral(ctx: RoutineContext) -> None:
-    # Mini keyholes 1 -> 2 -> 3 back to back, which earns the spiral bonus (4.2.2)
     for name in ctx.field.spiral_order:
         ctx.through(name)
 
 
 def _phase3(ctx: RoutineContext) -> None:
-    # Blue arch -> yellow keyhole -> tunnel (3.1.10, autonomous scores a fly-through, not the loop)
     ctx.through("blue_arch")
     ctx.through("yellow_keyhole")
     ctx.through("tunnel")
@@ -77,7 +73,7 @@ def full_run(ctx: RoutineContext) -> None:
         _spiral(ctx)
         _phase3(ctx)
         longest_lap = max(longest_lap, ctx.elapsed() - began)
-        if ctx.scorecard.remaining("red_arch") <= 0:  # every gate in the lap is capped at 2 passes
+        if ctx.scorecard.remaining("red_arch") <= 0:
             break
         if ctx.time_left() < longest_lap + LAP_MARGIN_S:
             ctx.log("not enough time for another lap, heading for the landing")

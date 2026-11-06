@@ -50,14 +50,13 @@ class ScorePanel(Panel):
         sig = (m.state, clock(m.remaining) if m.state == "running" else "", card.total,
                tuple(card.counts.values()), card.landing, m.best_score, m.piloting_best, len(m.attempts),
                m.resets, adc.running, adc.current_name, self.size.width, self.app.theme)
-        if not self.changed(sig):  # called 4x a second; the panel only changes when the clock or score does
+        if not self.changed(sig):
             return
         pal = palette(self.app)
         width = max(10, self.size.width - 4)
         out = Table.grid(expand=True)
         out.add_column(ratio=1)
 
-        # header: state + clock
         head = Text(no_wrap=True)
         if m.state == "running":
             low = m.remaining < 30

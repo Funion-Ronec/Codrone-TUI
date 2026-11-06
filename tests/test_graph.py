@@ -12,11 +12,10 @@ def test_empty_history_is_blank():
 
 def test_full_scale_fills_every_dot_of_the_cell():
     rows = braille_rows([100.0, 100.0], width=1, height=1, vmin=0, vmax=100)
-    assert rows[0][0][0] == chr(BRAILLE + 0xFF)  # all 8 dots
+    assert rows[0][0][0] == chr(BRAILLE + 0xFF)
 
 
 def test_area_fills_from_the_bottom():
-    # one sample at 25% of a 1-row graph = 1 of 4 dot rows: only the bottom dot of that column
     rows = braille_rows([25.0, 0.0], width=1, height=1, vmin=0, vmax=100)
     assert rows[0][0][0] == chr(BRAILLE + 0x40)
     rows = braille_rows([0.0, 25.0], width=1, height=1, vmin=0, vmax=100)

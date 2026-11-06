@@ -28,18 +28,18 @@ class NotSupported(BackendError):
 class Cap(str, enum.Enum):
     """Things a backend may or may not be able to do; the UI hides what is missing."""
 
-    TELEMETRY = "telemetry"  # battery, flight state, attitude ...
-    POSITION = "position"  # real position read-back (not dead reckoning)
-    RANGE = "range"  # front / bottom range sensors
-    VERTICAL = "vertical"  # up / down moves by distance
+    TELEMETRY = "telemetry"
+    POSITION = "position"
+    RANGE = "range"
+    VERTICAL = "vertical"
     FLIP = "flip"
-    SHAPES = "shapes"  # square / circle / spiral ... built-ins
+    SHAPES = "shapes"
     LED = "led"
     BUZZER = "buzzer"
-    GRAB = "grab"  # simulator gripper
-    TELEPORT = "teleport"  # simulator reset / teleport tools
-    ESTOP = "estop"  # true motor cut
-    COLOR = "color"  # colour sensors
+    GRAB = "grab"
+    TELEPORT = "teleport"
+    ESTOP = "estop"
+    COLOR = "color"
     TRIM = "trim"
 
 
@@ -57,21 +57,21 @@ class Telemetry:
     """One snapshot. ``None`` means 'this backend cannot report it', never 'zero'."""
 
     timestamp: float = field(default_factory=time.time)
-    battery: int | None = None  # percent
-    flight_state: str | None = None  # e.g. Ready / TakeOff / Flight / Landing
+    battery: int | None = None
+    flight_state: str | None = None
     movement_state: str | None = None
     front_range_cm: float | None = None
     bottom_range_cm: float | None = None
     wall_detected: bool | None = None
-    pos_cm: tuple[float, float, float] | None = None  # x, y, z
-    angles_deg: tuple[float, float, float] | None = None  # roll, pitch, yaw
+    pos_cm: tuple[float, float, float] | None = None
+    angles_deg: tuple[float, float, float] | None = None
     accel: tuple[float, float, float] | None = None
     gyro: tuple[float, float, float] | None = None
     flow_cm_s: tuple[float, float] | None = None
     temperature_c: float | None = None
     pressure_pa: float | None = None
     flight_time_s: float | None = None
-    pos_is_estimate: bool = False  # True when pos_cm is dead-reckoned from commands
+    pos_is_estimate: bool = False
 
 
 @dataclass
@@ -81,7 +81,7 @@ class Pose:
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
-    heading: float = 0.0  # degrees, clockwise-positive
+    heading: float = 0.0  # degrees, clockwise is positive
 
     def reset(self) -> None:
         self.x = self.y = self.z = self.heading = 0.0
@@ -91,8 +91,8 @@ class Pose:
 
     def apply_move(self, direction: Direction, distance_cm: float) -> None:
         h = math.radians(self.heading)
-        fx, fy = math.cos(h), -math.sin(h)  # forward unit vector in (x, y)
-        lx, ly = -fy, fx  # left unit vector (forward rotated 90 degrees counter-clockwise)
+        fx, fy = math.cos(h), -math.sin(h)
+        lx, ly = -fy, fx
         d = float(distance_cm)
         if direction is Direction.FORWARD:
             self.x, self.y = self.x + fx * d, self.y + fy * d
@@ -122,16 +122,14 @@ class DroneBackend(abc.ABC):
     is mid-move.
     """
 
-    #: "edu", "sim" or "mock"
     kind: str = "base"
     title: str = "Drone"
     caps: frozenset[Cap] = frozenset()
 
     def __init__(self) -> None:
         self.pose = Pose()
-        self.flying = False  # best-effort: set by takeoff()/land()
+        self.flying = False
 
-    # ----------------------------------------------------------------- lifecycle
     @abc.abstractmethod
     def connect(self, port: str | None = None) -> str:
         """Open the link. Returns a short human description ("COM5", "127.0.0.1:5000" ...).
@@ -152,7 +150,6 @@ class DroneBackend(abc.ABC):
         if cap not in self.caps:
             raise NotSupported(f"{what or cap.value} is not available on {self.title}")
 
-    # ------------------------------------------------------------------- flight
     @abc.abstractmethod
     def takeoff(self) -> None: ...
 
@@ -179,7 +176,6 @@ class DroneBackend(abc.ABC):
     def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
         """Raw stick control, each axis -100..100, held for ``seconds``."""
 
-    # ------------------------------------------------- optional capabilities
     def flip(self, direction: str = "back") -> None:
         raise NotSupported(f"flip is not available on {self.title}")
 
@@ -208,7 +204,6 @@ class DroneBackend(abc.ABC):
         """Put the drone back at its start (sim) or just zero the dead-reckoned pose (EDU)."""
         self.pose.reset()
 
-    # --------------------------------------------------------------- telemetry
     @abc.abstractmethod
     def read_telemetry(self) -> Telemetry:
         """Never block for long; unavailable fields stay ``None``."""

@@ -125,7 +125,7 @@ def test_sim_hides_edu_only_commands(tmp_path):
     sh.run_line("flip")
     sh.run_line("grab")
     assert "`flip` is not available" in host.text()
-    assert "not connected" in host.text()  # grab exists on the sim, it just needs a link
+    assert "not connected" in host.text()
     host.executor.shutdown()
 
 
@@ -143,10 +143,10 @@ def test_urgent_land_jumps_the_queue_but_plain_land_does_not(sh):
     connect(sh)
     sh.run_line("takeoff")
     drain(sh.host)
-    sh.run_line("wait 30")  # a long job holds the worker...
+    sh.run_line("wait 30")
     time.sleep(0.05)
-    sh.run_line("forward 100")  # ...with something queued behind it
-    sh.run_line("land -e")  # urgent: drops the queued move and aborts the wait
+    sh.run_line("forward 100")
+    sh.run_line("land -e")
     drain(sh.host, timeout=3)
     moves = [c for c in sh.backend.log if c[0] == "move"]
     assert not moves and not sh.backend.flying
@@ -157,7 +157,7 @@ def test_estop_acts_immediately_even_while_busy(sh):
     connect(sh)
     sh.run_line("takeoff")
     drain(sh.host)
-    sh.backend.time_scale = 1.0  # make the next move genuinely slow
+    sh.backend.time_scale = 1.0
     sh.backend.speed_cm_s = 10
     sh.run_line("forward 500")
     time.sleep(0.1)
@@ -173,7 +173,7 @@ def test_cat_and_echo_are_safe(sh, tmp_path):
     f.write_text("hello\nworld", encoding="utf-8")
     sh.run_line(f'cat "{f}"')
     sh.run_line("cat does-not-exist.txt")
-    sh.run_line("echo hi && calc.exe")  # must be printed, never executed
+    sh.run_line("echo hi && calc.exe")
     out = sh.host.text()
     assert "hello" in out and "world" in out and "not found" in out
     assert "hi && calc.exe" in out

@@ -67,7 +67,7 @@ def safety_net(backend) -> None:
         if backend.connected and backend.flying:
             print("TUI is exiting while the drone is flying -- landing it.", file=sys.stderr)
             backend.land()
-    except BaseException as exc:  # noqa: BLE001 - includes the vendor library's SystemExit
+    except BaseException as exc:  # noqa: BLE001
         print(f"could not land automatically ({type(exc).__name__}: {exc}) -- land it by hand!", file=sys.stderr)
     try:
         if backend.connected:
@@ -78,7 +78,7 @@ def safety_net(backend) -> None:
 
 def main(kind: str, argv: list[str] | None = None) -> int:
     args = parse_args(kind, argv)
-    if hasattr(sys.stdout, "reconfigure"):  # the banner and graphs are Unicode
+    if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     app = build_app(kind, args)
     try:

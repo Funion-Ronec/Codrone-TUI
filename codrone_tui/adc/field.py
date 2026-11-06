@@ -26,9 +26,8 @@ DEFAULT_MAT_ORIGIN = (
     "long leg, +y left (pilot side), +z up; start heading 0; the field turns RIGHT near the far end"
 )
 DEFAULT_SPIRAL_ORDER = ("mini_1", "mini_2", "mini_3")
-IN = 2.54  # the manual gives element sizes in inches
+IN = 2.54
 
-# Elements the built-in routines need.
 REQUIRED_ELEMENTS = (
     "red_arch", "blue_arch", "green_keyhole", "yellow_keyhole", "large_cube",
     "mini_1", "mini_2", "mini_3", "tunnel", "landing_pad", "bullseye",
@@ -43,10 +42,10 @@ class Element:
     y: float
     z: float = 0.0
     heading: float = 0.0
-    width: float = 0.0  # 0 = unknown / not measured
+    width: float = 0.0
     height: float = 0.0
     kind: str = ""
-    vertical: bool = False  # True: scored by flying DOWN through it (the tunnel, manual fig 3.1.5)
+    vertical: bool = False
 
 
 @dataclass
@@ -89,12 +88,7 @@ class FieldConfig:
         return "\n".join(lines) + "\n"
 
 
-# The solo field (manual Figure 3.2.2) is an L: two 96" x 42" mats end to end up the long leg (x),
-# then one more mat turning RIGHT (-y). Sizes below are the manual's section 1.5.2 figures in cm
-# (arch opening 60" x 63", keyhole inner diameter 24", large cube 17" x 20", pad 30" / bullseye 10",
-# tunnel 23.5" x 19"). x / y are ESTIMATES read off the figure (about +-10 cm, before the manual's own
-# +-3 in field-to-field variance); z (crossing heights) is not in the manual at all and is a guess.
-# name, label, kind, x, y, z, heading, width, height, vertical
+# x / y are eyeballed off the manual figure and z is a straight up guess, measure ur real field before flying this shit
 _PLACEHOLDER = (
     ("red_arch", "Red arch gate", "arch", 49, 0, 80, 0, 60 * IN, 63 * IN, False),
     ("green_keyhole", "Green keyhole gate", "keyhole", 183, 0, 110, 0, 24 * IN, 24 * IN, False),
@@ -174,7 +168,7 @@ def _from_dict(data: dict[str, Any], source: Path) -> FieldConfig:
 
 
 def _s(text: str) -> str:
-    return json.dumps(text, ensure_ascii=False)  # a JSON string is a valid TOML basic string
+    return json.dumps(text, ensure_ascii=False)
 
 
 def _b(value: bool) -> str:

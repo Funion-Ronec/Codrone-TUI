@@ -1,5 +1,3 @@
-# Aerial Drone Competition 2026-27 Fast Track | ts there is scoring, match clock, field, routines.
-
 from .field import Element, FieldConfig, default_field, load_field
 from .match import AttemptResult, MatchController, MatchError
 from .preflight import ITEMS as PREFLIGHT_ITEMS
