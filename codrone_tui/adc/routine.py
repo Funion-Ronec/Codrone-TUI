@@ -95,6 +95,10 @@ class RoutineContext:
             self._private_card = Scorecard()
         return self._private_card
 
+    def _match_over(self) -> bool:
+        """This match attempt has ended (time up, `match finish`, `match abort`): nothing more scores."""
+        return self._explicit_card is None and self.match is not None and self.match.state != "running"
+
     def elapsed(self) -> float:
         if self.match is not None and self.match.state == "running":
             return self.match.elapsed
@@ -122,7 +126,9 @@ class RoutineContext:
         self.check()
         self.log("land")
         self.backend.land()
-        if landing is not None:
+        if landing is not None and self._match_over():
+            self.log(f"{landing}: not scored, the match is over")
+        elif landing is not None:
             res = self.scorecard.set_landing(landing)
             self.log(res.message)
 
@@ -258,6 +264,10 @@ class RoutineContext:
 
     def credit(self, key: str) -> CreditResult:
         self.check()
+        if self._match_over():
+            res = CreditResult(False, 0, f"{key}: not scored, the match is over")
+            self.log(res.message)
+            return res
         res = self.scorecard.credit(key, t=self.elapsed(), source="routine")
         if not res.ok:
             self.rejected.append(key)

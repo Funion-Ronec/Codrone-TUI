@@ -253,6 +253,21 @@ def test_context_follows_the_match_controller():
     assert card.events[0].t == pytest.approx(25)
 
 
+def test_routine_points_after_the_match_ended_are_not_scored():
+    """Time up or `match finish` while a match routine still flies: its later claims must not reach the banked card."""
+    match = MatchController(clock=lambda: 0.0)
+    card = match.start()
+    backend = MockBackend("edu", time_scale=0.0)
+    backend.connect()
+    ctx = RoutineContext(backend, FlightExecutor(), match=match, log=lambda m: None)
+    ctx.takeoff()
+    match.finish()
+    assert not ctx.credit("red_arch").ok
+    ctx.land("landing_pad")
+    assert card.total == match.last_result.score == 5 and card.landing is None
+    assert ctx.rejected == []
+
+
 def test_builtin_routine_names():
     assert set(BUILTIN) == {"hover_test", "takeoff_land", "phase1", "spiral", "phase3", "full_run"}
     assert all(r.description and r.ok for r in BUILTIN.values())

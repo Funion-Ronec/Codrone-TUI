@@ -8,6 +8,7 @@ from codrone_tui import commands, pilot
 from codrone_tui.backend import MockBackend
 from codrone_tui.edu_app import EduApp
 from codrone_tui.pilot import FIRST_HOLD_S, REPEAT_HOLD_S, KeyMap, PilotController, RepeatKeys, sticks_for
+from codrone_tui.screens import HelpScreen
 from codrone_tui.sim_app import SimApp
 from codrone_tui.widgets.graph import _FALLBACK
 from codrone_tui.widgets.pilot import render_hud
@@ -293,6 +294,28 @@ def test_sim_pilot_has_no_flips_but_flies(tmp_path):
     asyncio.run(go())
 
 
+def test_takeoff_key_does_not_pile_up_takeoffs(tmp_path):
+    """T while a takeoff runs or the drone already flies must not queue more blocking takeoffs
+    (a real EDU takeoff holds the executor, and so the sticks, for 4-8 s each)."""
+
+    async def go():
+        app = EduApp(MockBackend("edu", time_scale=0.3), demo=True)  # ~0.9 s takeoff
+        app.adc_store = tmp_path / "adc.json"
+        async with app.run_test(size=(160, 48)) as p:
+            assert await wait_for(p, lambda: app.backend.connected)
+            await p.press("f")
+            for _ in range(3):
+                await p.press("t")
+                await p.pause(0.65)
+            assert await wait_for(p, lambda: app.backend.flying and not app.executor.busy)
+            await p.press("t")
+            await p.pause(0.3)
+            assert [c for c in app.backend.log if c[0] == "takeoff"] == [("takeoff",)]
+            assert not app.executor.busy
+
+    asyncio.run(go())
+
+
 def test_pilot_layout_comes_back_after_leaving(tmp_path):
     async def go():
         app = make("edu", tmp_path)
@@ -303,5 +326,65 @@ def test_pilot_layout_comes_back_after_leaving(tmp_path):
             assert app.query_one("#pilot-panel").display
             await p.press("escape")
             assert not app.query_one("#pilot-panel").display
+
+    asyncio.run(go())
+
+
+def test_a_modal_pauses_pilot_and_its_toggle_key_does_not_arm_it_underneath(tmp_path):
+    """Keys go to a modal, so the chip must not say PILOT under it, and the toggle key pressed there
+    must not turn PILOT on behind it."""
+
+    async def go():
+        app = make("edu", tmp_path)
+        async with app.run_test(size=(160, 48)) as p:
+            await p.press("f")
+            assert app.mode == "PILOT"
+            await p.press("question_mark")
+            assert isinstance(app.screen, HelpScreen) and app.pilot.active and app.mode == "NORMAL"
+            await p.press("escape")
+            assert app.mode == "PILOT"
+            await p.press("f")
+            assert not app.pilot.active
+            await p.press("question_mark")
+            await p.press("f")
+            await p.press("escape")
+            assert not app.pilot.active and app.mode == "NORMAL"
+
+    asyncio.run(go())
+
+
+def test_a_modal_over_the_pad_stops_the_held_key_reader(tmp_path):
+    """Textual keeps the pad focused on its own screen while a modal is up, so the Windows reader
+    (real key-down state) must not keep flying the drone under the help screen or the palette."""
+
+    class FakeWin32:
+        name = "held keys"
+        down = frozenset()
+
+        def supports(self, key):
+            return True
+
+        def window_focused(self):
+            return True
+
+        def held(self, keys):
+            return self.down & set(keys)
+
+    async def go():
+        app = make("edu", tmp_path)
+        async with app.run_test(size=(160, 48)) as p:
+            assert await wait_for(p, lambda: app.backend.connected)
+            await p.press("f")
+            await p.press("t")
+            assert await wait_for(p, lambda: app.backend.flying and not app.executor.busy)
+            win = app.pilot.ctl.win32 = FakeWin32()
+            await p.press("question_mark")
+            win.down = frozenset({"w"})
+            await p.pause(0.4)
+            assert ("stick", 0, 25, 0, 0) not in app.backend.log
+            win.down = frozenset()
+            await p.press("escape")
+            win.down = frozenset({"w"})
+            assert await wait_for(p, lambda: ("stick", 0, 25, 0, 0) in app.backend.log)
 
     asyncio.run(go())

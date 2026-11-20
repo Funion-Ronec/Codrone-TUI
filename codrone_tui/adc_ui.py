@@ -206,6 +206,7 @@ class AdcController:
                 app.console_write(str(exc), "error")
                 return
         else:
+            self.match.dismiss()  # a finished attempt is already banked, the practice card takes over
             self.practice = Scorecard()
         b.pose.reset()
         app.query_one("#map-panel", MapPanel).view.clear_trail()
@@ -234,7 +235,7 @@ class AdcController:
 
     def _mission_done(self, name: str, ctx: RoutineContext, in_match: bool) -> None:
         self.running = False
-        card = self.scorecard
+        card = ctx.scorecard
         app = self.app
         app.console_write(f"■ mission '{name}' ended -- claimed {card.total} pts"
                           f"{'' if not in_match else f' · {clock(self.match.remaining)} left on the clock'}", "ok")
@@ -338,6 +339,9 @@ class AdcController:
                 self._out(f"attempt {res.number}/{MAX_ATTEMPTS}: {res.score} pts in {clock(res.duration)}"
                           f" · {res.resets} reset(s) · best {m.best_score} · skills {m.skills_total}", "ok")
             elif sub == "abort":
+                if m.state != "running":
+                    done = f" (attempt {m.last_result.number} is already banked)" if m.state == "finished" else ""
+                    raise UsageError(f"no match is running{done}")
                 m.abort()
                 self._out("attempt discarded (does not count)", "warn")
             elif sub == "new":
@@ -374,20 +378,32 @@ class AdcController:
     def _cmd_credit(self, sh: Shell, pos: list[str], flags: set[str]) -> None:
         if not pos:
             raise UsageError("missing task")
-        for tok in pos:
-            key = self._resolve_task(tok)
-            res = self.match.credit(key, "manual") if self.match.state == "running" else self.scorecard.credit(key, source="manual")
-            self._out(res.message, "ok" if res.ok else "warn")
+        try:
+            for tok in pos:
+                key = self._resolve_task(tok)
+                res = self.match.credit(key, "manual") if self.match.state == "running" else self.scorecard.credit(key, source="manual")
+                self._out(res.message, "ok" if res.ok else "warn")
+        finally:
+            self._amend()
 
     def _cmd_undo(self, sh: Shell, pos: list[str], flags: set[str]) -> None:
         res = self.scorecard.undo()
         self._out(res.message if res else "nothing to undo", "ok" if res else "warn")
+        self._amend()
 
     def _cmd_landing(self, sh: Shell, pos: list[str], flags: set[str]) -> None:
         if not pos or pos[0].lower() not in _LANDING_WORDS:
             raise UsageError("expected pad, cube, bullseye or none")
         res = self.scorecard.set_landing(_LANDING_WORDS[pos[0].lower()])
         self._out(res.message, "ok" if res.ok else "warn")
+        self._amend()
+
+    def _amend(self) -> None:
+        """A correction typed after `match finish` is a correction to that attempt, so re-bank it."""
+        res = self.match.amend()
+        if res is not None:
+            self._out(f"attempt {res.number} re-banked: {res.score} pts · best {self.match.best_score}"
+                      f" · skills {self.match.skills_total}", "ok")
 
     def _cmd_score(self, sh: Shell, pos: list[str], flags: set[str]) -> None:
         card = self.scorecard

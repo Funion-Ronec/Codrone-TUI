@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -30,10 +30,11 @@ class AttemptResult:
 
 
 class MatchController:
-    """idle -> running -> finished, with an injectable clock so tests never sleep.
+    """idle -> running -> finished (-> idle on ``dismiss()``), with an injectable clock so tests never sleep.
 
     The clock keeps running through resets (manual 4.1.3). ``abort()`` throws the attempt away
-    without using it up; only ``finish()`` / expiry records one.
+    without using it up; only ``finish()`` / expiry records one, and ``amend()`` re-banks it after
+    a judge corrects its card.
     """
 
     def __init__(
@@ -129,6 +130,26 @@ class MatchController:
             self.state = "idle"
             self.scorecard = None
             self.resets = 0
+
+    def dismiss(self) -> None:
+        """Put a finished attempt away (it stays in ``attempts``) and go back to idle."""
+        if self.state == "finished":
+            self.state = "idle"
+            self.scorecard = None
+            self.resets = 0
+
+    def amend(self) -> AttemptResult | None:
+        """Re-bank the finished attempt after its card was corrected. ``None`` if nothing changed."""
+        if self.state != "finished" or self.scorecard is None or not self._attempts:
+            return None
+        card, last = self.scorecard, self._attempts[-1]
+        fixed = replace(last, score=card.total, breakdown=card.breakdown(), landing=card.landing)
+        if fixed == last:
+            return None
+        self._attempts[-1] = fixed
+        if self.autosave:
+            self.save()
+        return fixed
 
     def new_event(self) -> None:
         """Forget all attempts (start of a new competition event)."""

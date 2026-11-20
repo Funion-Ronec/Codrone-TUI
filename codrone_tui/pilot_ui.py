@@ -43,7 +43,9 @@ class PilotUI:
         self.ctl = PilotController(
             app.backend, app.executor, self.keymap,
             rate_hz=float(cfg.get("rate_hz", 20.0)), speed=int(cfg.get("speed", 2)), win32=win32,
-            app_focused=lambda: app.app_focus,
+            # a modal doesn't blur the pad (Textual keeps each screen's focus), so the held-key reader
+            # must also stop while one covers the main screen
+            app_focused=lambda: app.app_focus and not app.covered,
             on_error=lambda m: app.ui(app.console_write, f"pilot: {m}", "error"),
         )
         self.capture: tuple[str, str] | None = None
@@ -175,7 +177,11 @@ class PilotUI:
         elif action == "speed_down":
             self.ctl.change_speed(-1)
         elif action == "takeoff":
-            sh.run_line("takeoff")
+            if self.app.backend.flying or self.app.executor.busy:
+                # one more takeoff would only hold the sticks for another 4-8 s on a real EDU
+                self.app.console_write("takeoff ignored: already flying or a command is still running", "dim")
+            else:
+                sh.run_line("takeoff")
         elif action == "land":
             sh.run_line("land -e")
         elif action in FLIPS:

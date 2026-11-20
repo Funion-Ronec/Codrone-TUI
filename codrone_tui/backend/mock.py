@@ -75,6 +75,7 @@ class MockBackend(DroneBackend):
         if self.fail_next == name:
             self.fail_next = None
             raise BackendError(f"mock {name} failure")
+        self._interrupt.clear()  # an estop interrupts the command running at that moment, not the next one
 
     def _wait(self, seconds: float) -> None:
         """Compressed, interruptible sleep (emergency_stop interrupts it)."""

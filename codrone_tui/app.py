@@ -236,10 +236,15 @@ class CodroneApp(App):
             self.errors_seen += 1
 
     @property
+    def covered(self) -> bool:
+        """A modal (help, the command palette, a confirmation) is over the main screen and gets the keys."""
+        return len(self.screen_stack) > 1
+
+    @property
     def mode(self) -> str:
         if self.adc is not None and self.adc.running:
             return "AUTO"
-        if self.pilot is not None and self.pilot.active:
+        if self.pilot is not None and self.pilot.active and not self.covered:
             return "PILOT"
         return "INSERT" if isinstance(self.focused, Input) else "NORMAL"
 
@@ -363,7 +368,7 @@ class CodroneApp(App):
         self.set_focus(None)
 
     def on_key(self, event: events.Key) -> None:
-        if self.pilot is not None and self.mode == "NORMAL" and self.pilot.is_toggle(event.key):
+        if self.pilot is not None and self.mode == "NORMAL" and not self.covered and self.pilot.is_toggle(event.key):
             event.stop()
             self.pilot.enter()
 

@@ -90,6 +90,14 @@ def test_mock_emergency_stop_interrupts_a_blocking_move():
     ex.shutdown()
 
 
+def test_mock_emergency_stop_does_not_carry_over_to_the_next_command():
+    m = MockBackend("edu", time_scale=0.0)
+    m.connect()
+    m.emergency_stop()  # nothing was running: there is nothing to interrupt
+    m.takeoff()
+    assert m.flying
+
+
 def test_poller_collects_history():
     m = MockBackend("edu")
     m.connect()

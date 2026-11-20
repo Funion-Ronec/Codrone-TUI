@@ -59,6 +59,32 @@ def test_reset_does_not_stop_or_rewind_the_clock(match, clock):
     assert match.finish().resets == 2
 
 
+def test_dismiss_keeps_the_banked_attempt_and_never_touches_a_running_one(match):
+    card = match.start()
+    match.dismiss()
+    assert match.state == "running" and match.scorecard is card
+    match.credit("takeoff")
+    match.finish(landing="landing_pad")
+    match.dismiss()
+    assert match.state == "idle" and match.scorecard is None
+    assert match.attempts_left == MAX_ATTEMPTS - 1 and match.best_score == 10 and match.last_result.score == 10
+
+
+def test_amend_rebanks_a_corrected_finished_attempt_and_nothing_else(match):
+    card = match.start()
+    match.credit("takeoff")
+    assert match.amend() is None
+    match.finish(landing="landing_pad")
+    assert match.amend() is None
+    card.credit("red_arch")
+    res = match.amend()
+    assert (res.number, res.score, res.landing) == (1, 15, "landing_pad")
+    assert res.breakdown == {"takeoff": 5, "red_arch": 5, "landing_pad": 5}
+    assert match.attempts == [res] and match.best_score == 15
+    card.set_landing(None)
+    assert match.amend().landing is None and match.best_score == 10
+
+
 def test_reset_requires_a_running_match(match):
     with pytest.raises(MatchError):
         match.reset_drone()

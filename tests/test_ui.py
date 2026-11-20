@@ -194,6 +194,74 @@ def test_timed_match_with_routine_then_finish(tmp_path):
     run(go())
 
 
+def test_practice_after_a_finished_match_scores_the_practice_card(tmp_path):
+    """A practice run after `match finish` must report and edit its own card, never the banked one."""
+
+    async def go():
+        app = make("edu", tmp_path)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await wait_for(pilot, lambda: app.backend.connected)
+            await type_line(pilot, "preflight confirm all")
+            await type_line(pilot, "mission run takeoff_land -m")
+            assert await wait_for(pilot, lambda: app.adc.match.state == "running")
+            assert await wait_for(pilot, lambda: not app.adc.running and not app.backend.flying)
+            await type_line(pilot, "match finish pad")
+            m = app.adc.match
+            banked = m.last_result.score
+            await type_line(pilot, "mission run hover_test")
+            assert await wait_for(pilot, lambda: "mission 'hover_test' ended" in log_text(app))
+            assert "mission 'hover_test' ended -- claimed 5 pts" in log_text(app)
+            assert app.adc.scorecard is app.adc.practice and app.adc.scorecard.total == 5
+            await type_line(pilot, "undo")
+            assert app.adc.practice.total == 0
+            assert len(m.attempts) == 1 and m.last_result.score == m.best_score == banked
+
+    run(go())
+
+
+def test_corrections_after_match_finish_rebank_the_attempt(tmp_path):
+    """`undo`, `credit` and `landing` after `match finish` correct the banked attempt and its saved
+    history, not only the card on screen."""
+
+    async def go():
+        app = make("edu", tmp_path)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await wait_for(pilot, lambda: app.backend.connected)
+            await type_line(pilot, "preflight confirm all")
+            await type_line(pilot, "match start")
+            await type_line(pilot, "credit takeoff red_arch")
+            await type_line(pilot, "match finish pad")
+            m = app.adc.match
+            assert m.last_result.score == 15
+            await type_line(pilot, "undo")
+            assert app.adc.scorecard.total == m.last_result.score == m.best_score == 10
+            assert "attempt 1 re-banked: 10 pts" in log_text(app)
+            await type_line(pilot, "landing bullseye")
+            assert (m.last_result.score, m.last_result.landing) == (20, "landing_bullseye")
+            await type_line(pilot, "credit red_arch bogus")
+            assert "unknown task 'bogus'" in log_text(app) and m.last_result.score == 25
+            saved = json.loads((tmp_path / "adc.json").read_text(encoding="utf-8"))
+            assert [a["score"] for a in saved["attempts"]] == [25]
+
+    run(go())
+
+
+def test_match_abort_after_finish_says_the_attempt_still_counts(tmp_path):
+    async def go():
+        app = make("edu", tmp_path)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await wait_for(pilot, lambda: app.backend.connected)
+            await type_line(pilot, "preflight confirm all")
+            await type_line(pilot, "match start")
+            await type_line(pilot, "match finish")
+            await type_line(pilot, "match abort")
+            assert "attempt discarded" not in log_text(app)
+            assert "attempt 1 is already banked" in log_text(app)
+            assert app.adc.match.attempts_left == 2
+
+    run(go())
+
+
 def test_manual_credit_undo_and_spiral(tmp_path):
     async def go():
         app = make("edu", tmp_path)

@@ -19,11 +19,15 @@ Implementation details for working on Codrone-TUI. See `documentation.txt` for h
 | `POSITION` | Real position read-back, not dead reckoning |
 | `RANGE` | Front and bottom range sensors |
 | `VERTICAL` | Up and down moves by distance |
+| `FLIP` | Front, back, left, and right flips. The EDU refuses them below 50% battery |
 | `SHAPES` | Built-in shapes such as square, circle, and spiral |
+| `LED` | Drone LED colour |
+| `BUZZER` | Drone buzzer |
 | `GRAB` | Simulator gripper |
 | `TELEPORT` | Simulator reset and teleport tools |
 | `ESTOP` | True motor cut |
 | `COLOR` | Colour sensors |
+| `TRIM` | Trim. EDU and the mock declare it, but no command uses it yet |
 
 `DroneBackend.kind` is `"edu"`, `"sim"`, or `"mock"`.
 
@@ -68,7 +72,7 @@ The code is split across three files:
 
 How it works:
 
-- PILOT mode is on exactly while `PilotPad` has focus. Clicking elsewhere, opening the prompt or showing a modal blurs the pad, which stops the sticks.
+- PILOT mode is on exactly while `PilotPad` has focus. Clicking elsewhere or opening the prompt blurs the pad, which stops the sticks. A modal (help, command palette, a confirmation) does not blur it, because Textual keeps each screen's focus. While one is open (`CodroneApp.covered`), the held-key reader stops, the toggle key is ignored and the mode chip shows the modal's mode. PILOT carries on when it closes.
 - The pad consumes only keys bound in `KeyMap`. Unbound keys bubble up to the normal app bindings.
 - The toggle key is handled in `CodroneApp.on_key` rather than a `Binding`, so it can be rebound. It can't be bound to a key that a normal-mode binding already uses (`PilotUI.blocked_keys`).
 - `PilotController` runs on its own `pilot-sticks` thread at `rate_hz`, capped at `DroneBackend.stick_hz` (20 on EDU and mock, 10 on the simulator). Sticks are only sent while the drone is connected and flying, the executor is idle and, with the Windows reader, the window is focused. When sticks go back to zero it sends `ZERO_PACKETS` zero packets, then nothing.
@@ -77,7 +81,7 @@ How it works:
 
 ### Held keys
 
-- `Win32Keys` reads `GetAsyncKeyState`, and only counts keys while the foreground window is the console window, its root owner, or a window belonging to one of our ancestor processes (the terminal or IDE hosting us). Textual's `app_focus` must also be true.
+- `Win32Keys` reads `GetAsyncKeyState`, and only counts keys while the foreground window is the console window, its root owner, or a window belonging to one of our ancestor processes (the terminal or IDE hosting us). Textual's `app_focus` must also be true, and no modal may cover the main screen (`CodroneApp.covered`).
 - This hasn't been checked in every terminal. If a host isn't recognised, the HUD shows NO FOCUS, and `[pilot] hold = "repeat"` is the workaround.
 - `RepeatKeys` is the fallback on other platforms, in headless tests, and for keys `_VK` doesn't know. A key counts as held for `FIRST_HOLD_S` (0.55 s) after its first press, which covers the OS auto-repeat delay, then for `REPEAT_HOLD_S` (0.15 s) after each repeat. That assumes a key repeat rate of at least about 7 per second.
 
@@ -138,6 +142,7 @@ How it works:
 - `CreditEvent.source` is `manual`, `routine`, or `AUTO_SOURCE`, which marks events the scorecard awards by itself. `CreditEvent.t` is seconds since the match or scorecard started.
 - `CreditResult.points` is negative for an undo or landing removal. `CreditResult.auto` lists keys awarded automatically, such as the spiral bonus.
 - `AttemptResult.duration` is capped at `MATCH_SECONDS`. `expired` is true when the 180 s clock ended the attempt.
+- After `match finish`, the attempt stays on the score panel until the next `match start` or a practice `mission run` (`MatchController.dismiss`). `credit`, `undo` and `landing` typed meanwhile correct it, and `MatchController.amend` re-banks it. `match abort` only drops a running attempt.
 - `app.adc_store` is where attempt history is kept. The default is `logs/adc_attempts.json`.
 
 ## ADC field
@@ -167,6 +172,7 @@ The solo field (manual Figure 3.2.2) is an L: two 96" x 42" mats end to end alon
 - `through` only has to clear the element's depth: about 35 cm for a thin gate, or half the width plus a margin for a cube. Overshooting further just means backing up for the next element.
 - A vertical `through` climbs, slides over the top, then descends past the bottom opening.
 - `ctx.rejected` lists credits the scorecard refused because the task was already maxed out.
+- Once the match has ended (time up, `match finish` or `match abort`), a match routine's `credit` and `land` score nothing. Those refusals aren't added to `ctx.rejected`.
 - `Routine.source` is the file a routine was loaded from, or `""` for built-ins. `error` is set on placeholder entries for files that failed to load.
 - `LAP_MARGIN_S` is the time kept in hand after a lap to fly back to the start lane and land on the bullseye.
 - Every gate in a lap is capped at 2 passes.
