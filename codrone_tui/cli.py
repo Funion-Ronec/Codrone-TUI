@@ -1,4 +1,4 @@
-"""Command-line entry for both TUIs (edu_tui.py / sim_tui.py / Codrone-TUI.py call into here)."""
+"""Command line for both TUIs (edu_tui.py / sim_tui.py / Codrone-TUI.py call into here)."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def parse_args(kind: str, argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def safety_net(backend) -> None:
-    """Last resort once the UI is gone (crash, closed window): never leave a drone airborne."""
+    # Last resort once the UI is gone (crash, closed window, or whatever the fuck happened): never leave a drone airborne
     try:
         if backend.connected and backend.flying:
             print("TUI is exiting while the drone is flying -- landing it.", file=sys.stderr)

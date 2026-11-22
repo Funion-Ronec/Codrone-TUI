@@ -1,14 +1,3 @@
-"""Autonomous routines: the API a mission script flies with, the loader, and the dry-run.
-
-A routine is a function ``fn(ctx)`` decorated with ``@routine(name, description)``. It runs on the
-flight-executor thread, calls ``ctx`` methods (each one first checks for an abort request), and
-claims points with ``ctx.credit`` / ``ctx.through``. Those credits are what the *routine believes*
-it scored (source="routine"); nothing here can see the drone pass a gate, so a human judge should
-confirm or undo them on the scorecard.
-
-``load_routines`` imports user ``*.py`` files, i.e. it executes code from the routines folder.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -45,8 +34,7 @@ _LANDING_TARGETS = {
 
 
 class RoutineError(RuntimeError):
-    """A routine asked for something impossible (unknown field element, bad argument ...)."""
-
+    pass
 
 class ExecutorLike(Protocol):
     def check(self) -> None: ...
@@ -54,7 +42,7 @@ class ExecutorLike(Protocol):
 
 
 class RoutineContext:
-    """What a routine flies with. All distances in cm, angles in degrees, see ``backend.base``."""
+    # What a routine flies with. All distances in cm, angles in degrees, see backend.base
 
     APPROACH_CM = 60.0
     PAST_CM = 35.0
@@ -111,7 +99,7 @@ class RoutineContext:
         self._log(message)
 
     def check(self) -> None:
-        """Raises ``Aborted`` if the operator asked to stop. Every action calls this first."""
+        # Raises ``Aborted`` if the operator asked to stop
         self.executor.check()
 
     def takeoff(self, credit: bool = True) -> None:
@@ -122,7 +110,6 @@ class RoutineContext:
             self.credit("takeoff")
 
     def land(self, landing: str | None = None) -> None:
-        """Land here. ``landing`` is a landing key (``landing_pad`` ...) to score; None scores nothing."""
         self.check()
         self.log("land")
         self.backend.land()
@@ -133,7 +120,6 @@ class RoutineContext:
             self.log(res.message)
 
     def land_on(self, target: str) -> None:
-        """Fly over ``"pad"``, ``"bullseye"`` or ``"cube"`` and land, scoring that landing."""
         if target not in _LANDING_TARGETS:
             raise RoutineError(f"land_on target must be one of {sorted(_LANDING_TARGETS)}, not {target!r}")
         name, key = _LANDING_TARGETS[target]
@@ -162,7 +148,7 @@ class RoutineContext:
         self._move(Direction.DOWN, cm, speed)
 
     def turn(self, degrees: float) -> None:
-        """Positive = clockwise (right)."""
+        # Positive = clockwise (right)
         self.check()
         if degrees == 0:
             return
@@ -175,22 +161,17 @@ class RoutineContext:
         self.backend.hover(seconds)
 
     def wait(self, seconds: float) -> None:
-        """Pause without commanding the drone; wakes immediately on abort."""
+        # Pause without commanding the drone; wakes immediately on abort
         self.check()
         self.executor.sleep(seconds)
 
     def face(self, heading: float) -> None:
-        """Turn the short way to an absolute heading (clockwise from the start direction)."""
+        # Turn the short way to an absolute heading (clockwise from the start direction)
         delta = ((heading - self.backend.pose.heading + 180.0) % 360.0) - 180.0
         if abs(delta) >= self.MIN_TURN_DEG:
             self.turn(delta)
 
     def goto(self, x: float, y: float, z: float | None = None, speed: float | None = None) -> None:
-        """Fly to (x, y[, z]) in the field frame without changing heading.
-
-        Uses the dead-reckoned ``backend.pose``, which assumes the drone started on the first foot
-        of the mat facing +x and that every earlier move completed.
-        """
         self.check()
         pose = self.backend.pose
         dx, dy = x - pose.x, y - pose.y
@@ -217,7 +198,7 @@ class RoutineContext:
         if dz < 0:
             vertical()
 
-    def through(
+    def through( # yeah no this part is ugly as fuck
         self,
         name: str,
         speed: float | None = None,
@@ -225,13 +206,6 @@ class RoutineContext:
         pass_cm: float | None = None,
         credit: bool = True,
     ) -> CreditResult | None:
-        """Line up ``approach_cm`` before a field element along its heading, fly through it, then
-        claim its task (if it has one). Returns the credit result, or None.
-
-        Vertical elements (the tunnel) are entered from above and flown DOWN through, as in manual
-        figure 3.1.5. If the drone is already within the run-up of the element it does not back up
-        first (gates are only ~80 cm apart on the second leg).
-        """
         el = self._element(name)
         if el.vertical:
             return self._through_vertical(el, speed, credit)
@@ -308,7 +282,7 @@ class Routine:
 
 
 def routine(name: str, description: str = "", tags: tuple[str, ...] = ()) -> Callable[[Callable], Routine]:
-    """Decorator: ``@routine("my run", "what it does")`` turns ``fn(ctx)`` into a ``Routine``."""
+    # Decorator: ``@routine("my run", "what it does")`` turns ``fn(ctx)`` into a ``Routine``
 
     def wrap(fn: Callable[[RoutineContext], Any]) -> Routine:
         doc = (fn.__doc__ or "").strip().splitlines()
@@ -324,11 +298,6 @@ def builtin_routines() -> list[Routine]:
 
 
 def load_routines(directory: str | Path | None = None) -> list[Routine]:
-    """Import every ``*.py`` (not starting with ``_``) in ``directory`` and collect its Routines.
-
-    A file that fails to import yields an entry with ``error`` set instead of raising, so one bad
-    script cannot hide the others. Duplicate names keep the first and flag the later file.
-    """
     folder = Path(directory) if directory is not None else DEFAULT_ROUTINES_DIR
     if not folder.is_dir():
         return []
@@ -397,8 +366,6 @@ class DryRunReport:
 
 
 class _VirtualBackend(MockBackend):
-    """MockBackend on a virtual clock: every wait advances ``vt`` instead of sleeping."""
-
     def __init__(self, flavor: str, speed_cm_s: float) -> None:
         super().__init__(flavor, time_scale=0.0, speed_cm_s=speed_cm_s)
         self.vt = 0.0
@@ -442,11 +409,6 @@ def dry_run(
     flavor: str = "edu",
     speed_cm_s: float = DRY_SPEED_CM_S,
 ) -> DryRunReport:
-    """Run a routine against a virtual drone to predict its score and duration. No hardware.
-
-    The numbers are planning estimates: the real drone's speed, takeoff time and gate geometry
-    will differ, and credits are what the routine *claims* (it cannot miss a gate here).
-    """
     cfg = field if field is not None else default_field()
     backend = _VirtualBackend(flavor, speed_cm_s)
     card = Scorecard()

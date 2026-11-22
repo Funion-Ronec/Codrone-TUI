@@ -1,10 +1,4 @@
-"""ADC 2026-27 "Mission 2027: Fast Track" rules as data, plus the Solo Autonomous scorecard.
-
-Source: RECF ADC Game Manual v1.1 (Sept 29 2026), sections 3.1 (task definitions, landing
-criteria) and 4 (Solo Autonomous Flight Mission). Re-check the manual and the official Q&A
-before relying on any number here; rules can be revised mid-season.
-"""
-
+# rules for aerial drone comp
 from __future__ import annotations
 
 import time
@@ -107,7 +101,7 @@ class Row:
 
 
 class Scorecard:
-    """Points for one Solo Autonomous attempt.
+    """Points for one Solo Autonomous attempt. (Yeah W google)
 
     Spiral bonus (4.2.2): crediting ``mini_3`` awards ``spiral_bonus`` automatically when the
     three most recently *credited* scoring tasks, ignoring spiral bonuses themselves, are exactly
@@ -166,7 +160,7 @@ class Scorecard:
         return rows
 
     def breakdown(self) -> dict[str, int]:
-        """Points earned per task key (only keys that scored)."""
+        # Points earned per task key (only keys that scored)
         out: dict[str, int] = {}
         for e in self._events:
             out[e.key] = out.get(e.key, 0) + e.points
@@ -206,7 +200,7 @@ class Scorecard:
         return tuple(recent) == SPIRAL_SEQUENCE
 
     def undo(self) -> CreditResult | None:
-        """Remove the latest credit; an auto-awarded spiral bonus goes together with its trigger."""
+        # Remove the latest credit; an auto awarded spiral bonus goes together with its trigger
         if not self._events:
             return None
         removed = [self._events.pop()]
@@ -218,7 +212,7 @@ class Scorecard:
         return CreditResult(True, -points, f"undid {names} (-{points})", auto, 0)
 
     def set_landing(self, key: str | None) -> CreditResult:
-        """Record the landing (one slot: a new landing replaces the old). ``None`` clears it."""
+        # Record the landing (one slot: a new landing replaces the old). ``None`` clears it
         if key is None:
             had, self._landing = self._landing, None
             return CreditResult(True, -LANDINGS[had].points if had else 0, "landing cleared")
@@ -242,10 +236,6 @@ class Scorecard:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Scorecard":
-        """Rebuild by replaying the stored credits, so caps and the spiral rule are re-applied.
-
-        Unknown or over-cap entries are dropped; auto-awarded bonuses are regenerated, not copied.
-        """
         card = cls()
         for item in data.get("events", []):
             if not isinstance(item, dict) or item.get("key") == SPIRAL_KEY:

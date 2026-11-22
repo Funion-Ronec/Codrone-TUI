@@ -1,4 +1,5 @@
 """CoDrone EDU TUI.   python edu_tui.py [--port COM5] [--connect] [--demo]"""
+# some more pregen conf
 
 import sys
 

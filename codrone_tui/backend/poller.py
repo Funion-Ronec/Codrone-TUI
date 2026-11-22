@@ -1,4 +1,4 @@
-"""Background telemetry sampling with a bounded history for the btop-style graphs."""
+# Background telemetry sampling, ripped straight from btop and rovr
 
 from __future__ import annotations
 

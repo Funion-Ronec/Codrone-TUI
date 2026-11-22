@@ -1,11 +1,10 @@
 """Codrone-TUI launcher.
 
-    python Codrone-TUI.py edu [options]     CoDrone EDU (real drone, USB controller)
-    python Codrone-TUI.py sim [options]     CoDrone Simulator (Unity sim on this PC)
+    python Codrone-TUI.py edu [options]     CoDrone EDU
+    python Codrone-TUI.py sim [options]     CoDrone Simulator
     python Codrone-TUI.py                   ask which one
 
-Options are the same as edu_tui.py / sim_tui.py: --port, --connect, --demo, --theme, --field.
-(The original single-file draft is kept in legacy/Codrone-TUI.draft.py.)
+the opts are the same as edu_tui.py / sim_tui.py: --port, --connect, --demo, --theme, --field.
 """
 
 import sys

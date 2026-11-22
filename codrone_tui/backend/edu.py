@@ -1,12 +1,4 @@
-"""Real CoDrone EDU over USB serial, wrapping the vendor ``codrone_edu`` library.
-
-Things the vendor library does that a TUI has to defend against:
-    * it calls ``exit()`` (``SystemExit``) when the controller cannot be opened
-    * ``pair()`` returns True even when the drone is off, so we check the flight state ourselves
-    * every request/response helper sleeps, and writes to the serial port from whatever thread
-      calls it -- pyserial is not safe for two writers, so ``transfer`` is wrapped in a lock
-    * it ``print()``s status text (Textual captures that; see app.py)
-"""
+# this is for the actual drone
 
 from __future__ import annotations
 
@@ -35,16 +27,6 @@ _LIB_LOCK = threading.Lock()
 
 
 def load_edu_lib():
-    """Import ``codrone_edu.drone`` without letting it break asyncio. Safe to call from any thread.
-
-    The vendor module overwrites ``asyncio.sleep`` at import time with a browser-only version that
-    calls an undefined ``checkInterrupt()``; on desktop every later ``await asyncio.sleep()`` --
-    including Textual's own -- would die with a NameError. The real one is ``asyncio.tasks.sleep``.
-
-    The import takes ~1.7 s (numpy, Pillow), so it can run on a background thread while the UI is
-    already up. For the instant between the vendor's patch and our restore, a harmless
-    ``checkInterrupt`` is provided so the patched sleep still behaves like the real one.
-    """
     import asyncio
     import builtins
 
@@ -59,7 +41,6 @@ def load_edu_lib():
 
 
 def prewarm_edu_lib() -> None:
-    """Start importing the vendor library in the background so ``pair`` does not pay for it."""
 
     def work() -> None:
         try:
@@ -71,7 +52,6 @@ def prewarm_edu_lib() -> None:
 
 
 def find_controller_ports() -> list[tuple[str, str, bool]]:
-    """(device, description, looks_like_codrone_controller) for every serial port."""
     try:
         from serial.tools.list_ports import comports
     except Exception:
@@ -107,7 +87,7 @@ class EduBackend(DroneBackend):
         self._wrap_transfer(drone)
         try:
             drone.pair(port)
-        except SystemExit as exc:  # vendor lib just calls exit() instead of raising, real dumb
+        except SystemExit as exc:  # vendor lib just calls exit() instead of raising, fucking hell
             raise BackendError(
                 "could not open the CoDrone EDU controller"
                 + (f" on {port}" if port else " (is it plugged in by USB?)")
@@ -115,7 +95,7 @@ class EduBackend(DroneBackend):
         except Exception as exc:  # noqa: BLE001
             raise BackendError(f"pairing failed: {type(exc).__name__}: {exc}") from exc
 
-        # pair() says it worked even if the drone is off, lying ass function. check we really get state back
+        # pair() says it worked even if the drone is off, dumbass func.
         state = None
         for _ in range(10):
             state = drone.get_state_data()[2]
@@ -201,7 +181,7 @@ class EduBackend(DroneBackend):
         self._sync_height()
 
     def _sync_height(self) -> None:
-        """Take the real hover height from the downward range sensor. Without this the dead-reckoned
+        """Take the real hover height from the downward range sensor. Without this the dead reckoned
         height stays 0 and a routine asking for z=80 would climb a further 80 cm on top of the hover."""
         try:
             d = self._d

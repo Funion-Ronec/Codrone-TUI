@@ -1,5 +1,3 @@
-"""Runs blocking drone calls one at a time on a worker thread, so the UI never freezes."""
-
 from __future__ import annotations
 
 import itertools
@@ -14,7 +12,7 @@ from .base import BackendError
 
 
 class Aborted(Exception):
-    """Raised by ``FlightExecutor.check()`` inside a job after ``abort()`` was requested."""
+    pass
 
 
 @dataclass
@@ -40,14 +38,6 @@ Listener = Callable[[str, Job], None]
 
 
 class FlightExecutor:
-    """Single worker thread + FIFO queue.
-
-    ``abort()`` is the soft stop: it empties the queue and sets ``stop_event`` so that a
-    cooperative job (a mission routine) can bail out between steps by calling ``check()``.
-    It cannot interrupt a blocking library call; for that use the backend's
-    ``emergency_stop()`` / ``land()``, which are called from the *caller's* thread.
-    """
-
     def __init__(self, listener: Listener | None = None, history: int = 50) -> None:
         self._listener = listener
         self._q: "queue.Queue[Job | None]" = queue.Queue()
@@ -77,7 +67,6 @@ class FlightExecutor:
             return [j for j in self.jobs if j.state == "queued"]
 
     def abort(self) -> int:
-        """Drop everything queued and ask the running job to stop. Returns jobs dropped."""
         self.stop_event.set()
         dropped = 0
         while True:
@@ -93,12 +82,10 @@ class FlightExecutor:
         return dropped
 
     def check(self) -> None:
-        """Call between steps of a long job; raises ``Aborted`` once ``abort()`` was requested."""
         if self.stop_event.is_set():
             raise Aborted()
 
     def sleep(self, seconds: float) -> None:
-        """Interruptible sleep for jobs: wakes immediately on abort."""
         if self.stop_event.wait(max(0.0, seconds)):
             raise Aborted()
 

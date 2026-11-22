@@ -1,4 +1,4 @@
-"""Optional ``config.toml`` next to the scripts. Every key has a default, so the file is never required."""
+# Config stuff
 
 from __future__ import annotations
 

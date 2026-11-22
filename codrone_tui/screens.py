@@ -1,4 +1,4 @@
-"""Modal dialogs."""
+# Modal dialogs
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+# THIS TOOK FOREVER TO MAP AND WRITE DOWN/
 HELP_KEYS = """\
 [b]Modes[/b]   NORMAL (keys act)  ·  INSERT (typing a command)  ·  PILOT (keyboard flying)  ·  AUTO (a mission is flying)
 

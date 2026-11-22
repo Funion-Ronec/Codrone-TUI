@@ -1,4 +1,4 @@
-"""The CoDrone Simulator TUI: talks to the Unity simulator over UDP."""
+# The CoDrone Simulator TUI: talks to the Unity simulator over UDP.
 
 from __future__ import annotations
 

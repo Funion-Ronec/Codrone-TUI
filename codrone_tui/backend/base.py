@@ -1,13 +1,3 @@
-"""Backend contract shared by the CoDrone EDU TUI, the Simulator TUI and the ADC module.
-
-Conventions (used everywhere in the project):
-    * distances are centimetres, angles are degrees, durations are seconds
-    * pose frame: +x forward, +y left, +z up, origin = where the drone took off
-    * heading is clockwise-positive (so a right turn *adds* to the heading)
-    * every backend method is BLOCKING and is meant to be called from a worker thread,
-      never from the UI thread
-"""
-
 from __future__ import annotations
 
 import abc
@@ -18,15 +8,14 @@ from dataclasses import dataclass, field
 
 
 class BackendError(RuntimeError):
-    """Anything that goes wrong talking to a drone (connection, library, timeout)."""
+    pass
 
 
 class NotSupported(BackendError):
-    """The command exists in the TUI but this drone/simulator cannot do it."""
+    pass
 
 
 class Cap(str, enum.Enum):
-    """Things a backend may or may not be able to do; the UI hides what is missing."""
 
     TELEMETRY = "telemetry"
     POSITION = "position"
@@ -54,8 +43,6 @@ class Direction(str, enum.Enum):
 
 @dataclass
 class Telemetry:
-    """One snapshot. ``None`` means 'this backend cannot report it', never 'zero'."""
-
     timestamp: float = field(default_factory=time.time)
     battery: int | None = None
     flight_state: str | None = None
@@ -76,7 +63,6 @@ class Telemetry:
 
 @dataclass
 class Pose:
-    """Dead-reckoned pose, advanced from the commands we send (see ``Pose.apply_*``)."""
 
     x: float = 0.0
     y: float = 0.0
@@ -115,12 +101,7 @@ class Pose:
 
 
 class DroneBackend(abc.ABC):
-    """Everything the TUI / ADC routines may ask of a drone.
-
-    Subclasses must keep ``self.pose`` in step with the moves they perform and must make
-    ``read_telemetry`` fast (well under a second) and safe to call while another thread
-    is mid-move.
-    """
+    # Everything the TUI / ADC routines may ask of a drone
 
     kind: str = "base"
     title: str = "Drone"
@@ -132,10 +113,7 @@ class DroneBackend(abc.ABC):
         self.flying = False
 
     @abc.abstractmethod
-    def connect(self, port: str | None = None) -> str:
-        """Open the link. Returns a short human description ("COM5", "127.0.0.1:5000" ...).
-
-        Must raise ``BackendError`` (never ``SystemExit``) if the drone cannot be reached."""
+    def connect(self, port: str | None = None) -> str: ...
 
     @abc.abstractmethod
     def disconnect(self) -> None: ...
@@ -158,34 +136,25 @@ class DroneBackend(abc.ABC):
     def land(self) -> None: ...
 
     @abc.abstractmethod
-    def emergency_stop(self) -> None:
-        """Cut motors / land as hard as this backend allows. Must be safe to call from ANY
-        thread while another command is blocking, and must not raise."""
+    def emergency_stop(self) -> None: ...
 
     @abc.abstractmethod
     def hover(self, seconds: float = 1.0) -> None: ...
 
     @abc.abstractmethod
-    def move(self, direction: Direction, distance_cm: float, speed: float | None = None) -> None:
-        """Relative move. ``speed`` is backend-native (m/s on EDU); ``None`` = backend default."""
+    def move(self, direction: Direction, distance_cm: float, speed: float | None = None) -> None: ...
 
     @abc.abstractmethod
-    def turn(self, degrees: float) -> None:
-        """Positive = clockwise (right), negative = counter-clockwise (left)."""
+    def turn(self, degrees: float) -> None: ...
 
     @abc.abstractmethod
-    def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
-        """Raw stick control, each axis -100..100, held for ``seconds``."""
+    def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None: ...
 
     def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
-        """Live sticks for PILOT mode. NON-blocking and called ``stick_hz`` times a second, so unlike
-        ``go`` it uses the project's convention: +roll right, +pitch forward, +yaw clockwise, +throttle
-        up. ``hold_s`` is the time until the next call."""
         raise NotSupported(f"live stick control is not available on {self.title}")
 
     def _drift(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float,
                cm_s: float, deg_s: float) -> None:
-        """Advance the dead-reckoned pose by ``seconds`` of stick input (``cm_s`` / ``deg_s`` at 100)."""
         s = cm_s * seconds / 100.0
         self.pose.apply_move(Direction.FORWARD, pitch * s)
         self.pose.apply_move(Direction.RIGHT, roll * s)
@@ -217,13 +186,10 @@ class DroneBackend(abc.ABC):
         raise NotSupported(f"teleport is not available on {self.title}")
 
     def reset_position(self) -> None:
-        """Put the drone back at its start (sim) or just zero the dead-reckoned pose (EDU)."""
         self.pose.reset()
 
     @abc.abstractmethod
-    def read_telemetry(self) -> Telemetry:
-        """Never block for long; unavailable fields stay ``None``."""
+    def read_telemetry(self) -> Telemetry:...
 
     def info(self) -> dict[str, str]:
-        """Key/value facts for the 'Metadata' panel (port, firmware, counters ...)."""
         return {"backend": self.title}
