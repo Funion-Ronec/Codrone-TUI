@@ -1,15 +1,4 @@
-"""Example user routine: a square lap that threads the large cube on the way.
-
-Every ``*.py`` file in this folder is imported when the TUI starts, and each ``@routine``
-function in it shows up in the Missions list. Files whose name starts with "_" are skipped.
-A file with a mistake does not break the others: it appears as "<file> (load error)".
-
-Rules of thumb for routines (they run on the flight thread, not the UI thread):
-  * fly only through ``ctx`` so the Esc / abort key can stop you between steps
-  * distances are cm, turns are degrees (positive = clockwise / right)
-  * ``ctx.credit`` / ``ctx.through`` record points the routine *thinks* it earned; the
-    scorecard still lets you undo what the drone actually missed
-"""
+# basic ass example I pulled from reddit
 
 from codrone_tui.adc.routine import routine
 
