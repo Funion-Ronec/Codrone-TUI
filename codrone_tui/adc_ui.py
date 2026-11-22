@@ -1,9 +1,6 @@
-"""Autonomous-mission features for the TUIs: match clock, scorekeeping, routines, pre-flight.
-
-Loaded by ``CodroneApp.on_mount``. If anything in here breaks, the flight console still works.
-"""
-
 from __future__ import annotations
+
+# Yes I generated ts with claude and then tweaked it
 
 from pathlib import Path
 
@@ -107,7 +104,7 @@ class AdcController:
         try:
             panel = self.app.query_one("#map-panel", MapPanel)
             panel.view.set_markers(markers)
-            panel.border_title = "5 Map" + ("" if self.field.calibrated else " ⚠ placeholder field")
+            panel.border_title = "5 Map" + ("" if self.field.calibrated else "placeholder field")
         except Exception:  # noqa: BLE001
             pass
 
@@ -128,7 +125,7 @@ class AdcController:
     def on_telemetry(self, t) -> None:
         pass
 
-    def tick(self) -> None:
+    def tick(self) -> None: # implementation for ts was soo simple but I struggled 4 sum reason
         res = self.match.tick()
         if res is not None:
             self.app.executor.abort()
@@ -160,6 +157,8 @@ class AdcController:
                 + (f"  -- {r.detail}" if r.status != "pass" and r.detail else "") for r in results]
 
     def start_mission(self, name: str, in_match: bool, skip_confirm: bool) -> None:
+        # I feel like there was a significantly easier way to write this rather than
+        # having a bunch of "if" statment but walahi it works it works
         app, b = self.app, self.app.backend
         if self.running:
             raise UsageError("a mission is already running -- `mission stop` first")
@@ -189,7 +188,7 @@ class AdcController:
             body += ["", "The drone will take off and fly by itself. Keep clear; eye protection on.",
                      "[b]ctrl+x[/b] cuts the motors · [b]ctrl+l[/b] lands."]
             if not self.field.calibrated:
-                body += ["", "[b]⚠ the field layout is NOT calibrated[/b] -- positions are placeholders."]
+                body += ["", "[b]the field layout is NOT calibrated[/b] -- positions are placeholders."]
             body += ["", "Run = you confirm every ☐ item."]
             app.push_screen(ConfirmScreen("Start autonomous flight", body),
                             lambda ok: self._launch(r, in_match, results) if ok else app.console_write("cancelled", "dim"))
@@ -246,7 +245,7 @@ class AdcController:
         if in_match and self.match.state == "running":
             app.console_write("match still running: `match finish` to bank it, or `match reset` + run again", "dim")
 
-    def _register_commands(self, sh: Shell) -> None:
+    def _register_commands(self, sh: Shell) -> None: # cp goes brr
         R = sh.register
         R(Command("mission", self._cmd_mission, "mission list|run|dry|info|stop|reload", "autonomous routines", "autonomous", ("m",)))
         R(Command("match", self._cmd_match, "match start|reset|finish|abort|status|new", "180 s match clock + attempts", "autonomous"))
