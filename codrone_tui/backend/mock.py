@@ -1,8 +1,4 @@
-"""A fake drone: lets the TUIs (``--demo``) and the tests run without hardware or Unity.
-
-It imitates the *capabilities* of either real backend (``flavor="edu"`` or ``"sim"``) and
-runs on a compressed clock (``time_scale``) so a 3-minute mission does not take 3 minutes.
-"""
+# this is purely for demo and testing purposes
 
 from __future__ import annotations
 
