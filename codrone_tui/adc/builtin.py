@@ -1,7 +1,7 @@
 """
 semgents end by landing in place (no landing points) so each can be test flown on its own;
 full_run is the only one that goes for the bullseye. like all of them are only as good as the
-field numbers: with the placeholder layout they are a plan to dry-run, not something to fly.
+field numbers: with the placeholder layout they are a plan to dry run, not something to fly.
 """
 
 from __future__ import annotations
