@@ -1,6 +1,6 @@
-"""Pre-flight checklist (manual 2.4.1: "required before each match").
+"""Pre-flight checklist. yeah this is required by the competition
 
-Items the TUI can verify from telemetry are computed; the rest need an explicit human tick.
+Items the TUI can verify from telemetry are computed; the rest need manual verification
 """
 
 from __future__ import annotations
