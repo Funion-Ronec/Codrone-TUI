@@ -1,8 +1,3 @@
-"""Keyboard flying (PILOT mode): the rebindable keymap, held-key detection and the stick sender.
-
-UI-agnostic like ``commands.py``: ``pilot_ui.py`` wires it into the Textual app.
-"""
-
 from __future__ import annotations
 
 import json
@@ -70,7 +65,7 @@ def check_key(key: str) -> str:
 
 
 class KeyMap:
-    """Action -> key, plus key -> shell command line for the free slots (F-keys by default)."""
+    # Action -> key, plus key -> shell command line for the free slots (F-keys by default).
 
     def __init__(self, keys: dict[str, str], commands: dict[str, str]) -> None:
         self.keys = dict(keys)
@@ -168,7 +163,7 @@ class KeyMap:
         self.commands[key] = line
 
     def unbind(self, key: str) -> str | None:
-        """Free a key. Returns what it was bound to, or ``None``."""
+        # Free a key. Returns what it was bound to, or ``None``
         key = norm_key(key)
         action = self.action_for(key)
         if action:
@@ -182,7 +177,7 @@ class KeyMap:
 
 
 def sticks_for(held: set[str] | frozenset[str], power: int) -> tuple[int, int, int, int]:
-    """Held axis actions -> (roll, pitch, yaw, throttle) in the backend's ``stick`` convention."""
+    # Held axis actions -> (roll, pitch, yaw, throttle) in the backend stick convention.
 
     def axis(pos: str, neg: str) -> int:
         return power * ((pos in held) - (neg in held))
@@ -194,9 +189,7 @@ ZERO = (0, 0, 0, 0)
 
 
 class RepeatKeys:
-    """Guesses held keys from terminal key events (terminals never send a key-up). A key counts as
-    held for ``FIRST_HOLD_S`` after its first press, which covers the OS auto-repeat delay, then for
-    ``REPEAT_HOLD_S`` after each repeat."""
+    # I don't fully understand this section but during debugging, this seems to be the fix.
 
     name = "key-repeat"
 
@@ -238,7 +231,7 @@ _VK = {
 
 
 class Win32Keys:
-    """Real key-down state from Windows (``GetAsyncKeyState``), only while our window is in front."""
+    # Real key-down state from Windows (``GetAsyncKeyState``), only while the window is in front.
 
     name = "held keys"
 
@@ -279,7 +272,7 @@ class Win32Keys:
 
 
 def _ancestor_pids(ctypes, wintypes, kernel32) -> frozenset[int]:
-    """Our process and every parent above it: the terminal hosting us is one of them."""
+    # the process and every parent above it: the terminal hosting is one of them.
 
     class PROCESSENTRY32W(ctypes.Structure):
         _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
@@ -325,7 +318,7 @@ def make_win32_keys() -> Win32Keys | None:
 
 @dataclass(frozen=True)
 class PilotState:
-    """One snapshot for the HUD."""
+    # One snapshot for the HUD.
 
     active: bool
     status: str
@@ -337,12 +330,6 @@ class PilotState:
 
 
 class PilotController:
-    """Turns held keys into live stick packets on its own thread, ``rate_hz`` times a second.
-
-    Sticks only go out while PILOT mode is active, the drone is linked and flying, and the flight
-    executor is idle; any queued command (takeoff, flip, a mission) pauses the sticks. Releasing every
-    key, leaving PILOT mode or losing window focus sends a few zero packets, then nothing.
-    """
 
     def __init__(self, backend: DroneBackend, executor, keymap: KeyMap, *, rate_hz: float = 20.0,
                  speed: int = DEFAULT_SPEED, win32: Win32Keys | None = None, app_focused=lambda: True,
