@@ -1,26 +1,25 @@
-CODRONE-TUI  v0.2.0
+CODRONE-TUI  v0.2.0 (v0.1.0 is on the repo, its a fail), (Ts was also written with quite a lot of help from claude--claude is a fucking idiot tho, had to correct that nga multiple times-- reddit--a mix of great and shit info-- and stack the MVP right here lowk)
 ===================
 Two terminal flight consoles, one shared code base:
 
     python edu_tui.py           CoDrone EDU        real drone over the USB controller   (cyan/amber theme)
-    python sim_tui.py           CoDrone Simulator  the Unity simulator on this PC       (violet/green theme)
+    python sim_tui.py           CoDrone Simulator  the Unity simulator                  (violet/green theme)
     python Codrone-TUI.py       asks which one   (or: Codrone-TUI.py edu|sim ...)
 
 Run them with the project's venv:   .venv\Scripts\python.exe edu_tui.py --demo
-Use Windows Terminal (or any terminal with Unicode + truecolor); the graphs are braille characters.
 
-Options (both):   --demo        mock drone, nothing flies. Try everything safely.
+flags (both):   --demo        mock drone, nothing flies. Try everything safely.
                   --connect     pair immediately
                   --port X      EDU: COM port (default: auto-detect)   Sim: host:port (default 127.0.0.1:5000)
-                  --theme X     btop, catppuccin-mocha, tokyo-night, gruvbox, nord, textual-light ...
+                  --theme X     btop, catppuccin-mocha, tokyo-night, gruvbox, nord, textual-light ... (yeah if you couldn't tell, these themes are ripped straight from btop and rovr)
                   --field PATH  field layout file (default field.toml)
                   --no-log      do not write typed commands to logs/ (see `log` below)
 Simulator only:   --no-verify   do not probe the simulator on connect
 
-The two TUIs deliberately look different so a real drone is never mistaken for the simulator.
+The 2 TUIs look different so the real drone is never mistaken for the simulator.
 
 
-LAYOUT  (rovr-style bordered panels, btop-style graphs)
+LAYOUT  (ripped straight from btop and rovr)
 ------
   status bar   link, battery, flight state, job count, match clock + score, mode, uptime
   1 Console    log + command prompt          2 Sidebar   click / enter to run common commands
@@ -44,7 +43,7 @@ KEYS
   f        PILOT mode (below)
 
 
-PILOT MODE  (fly with the keyboard)
+PILOT MODE  (fly with the keyboard) - (yeah ts one is ripped from reddit and stack)
 ----------
   `f` (or the `pilot` command) enters it and shows panel 8; `esc` or `f` leaves it and the drone hovers.
   Default keys:
@@ -72,7 +71,7 @@ PILOT MODE  (fly with the keyboard)
            flip_front flip_back flip_left flip_right toggle.   esc, ctrl+x, ctrl+l can't be rebound.
 
 
-COMMANDS  (type `help`, or `help <command>`)
+COMMANDS  (type `help`, or `help <command>`) (also most of these ts are useless asf, I just added them just cuz)
 --------
   link      pair [port]    disconnect    ports    status    info
   flight    takeoff    land [-e]    stop    estop    hover [s]
@@ -97,7 +96,7 @@ Compared with the old draft: `echo` no longer runs your text through a shell, `p
 placeholders are replaced by `go`/`stick` and a real `flip`.
 
 
-AUTONOMOUS  (Aerial Drone Competition 2026-27, "Mission 2027: Fast Track", Game Manual v1.1)
+AUTONOMOUS  (Aerial Drone Competition 2026-27, "Mission 2027: Fast Track", Game Manual v1.1) (Thank you Claude Opus 5.5)
 ----------
 Rules implemented (manual section 4, Solo Autonomous Flight): 180 s, up to 3 attempts, drone runs on pre-programmed code,
 resets allowed with the clock still running, tasks in any order, up to their maximum count:
@@ -209,8 +208,6 @@ FILES
     codrone_tui/            app, commands, adc_ui, screens, config, cli, styles.tcss, widgets/
     field.toml  routines/  logs/               field layout, your routines, command logs (unless off) + attempt logs
     pilot_keys.toml                            your PILOT key bindings (created by `pilot bind` / `pilot run`)
-    legacy/Codrone-TUI.draft.py                the original single-file draft, untouched
-    legacy/requirements.old.txt                the 16 packages the venv used to have (PyQt5, pyautogui, ... unused)
     tests/                                     python -m pytest -q   (178 tests, ~2 min; no hardware needed)
     docs/DEVELOPMENT.md                        developer notes (units, vendor quirks, tuning constants)
 
@@ -218,12 +215,3 @@ SETUP FROM SCRATCH
 ------------------
     py -3.14 -m venv .venv
     .venv\Scripts\python.exe -m pip install -r requirements-dev.txt        (about 20 packages, ~110 MB)
-
-KNOWN LIMITS
-------------
-  * Written and tested without a CoDrone EDU or the Unity simulator at hand: the EDU and Simulator backends are tested
-    against faithful fakes (see tests/test_real_backends.py). First flight on real hardware: use --demo to learn the keys,
-    then `mission run hover_test`, over a clear floor, with eye protection.
-  * Gate crossings are claimed by routines, never detected.
-  * Several details of vendor-library behaviour (units, flight-state names, what `pair` does on failure) come from reading
-    its source code, not from flying it. If something reads wrong on real hardware, tell me and it is a one-line fix.
