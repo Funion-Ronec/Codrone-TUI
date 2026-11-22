@@ -1,9 +1,9 @@
-"""The command shell: one registry shared by both TUIs, replacing the draft's if/elif loop.
+"""The command shell: one registry shared by both TUIs, replacing the draft if/elif loop.
 
 Commands come in two kinds:
     * instant  - run immediately on the caller's (UI) thread, must not block (help, status ...)
     * flight   - queued on the FlightExecutor so the UI never freezes (takeoff, forward ...)
-Safety commands (estop, land -e, stop) bypass the queue on purpose.
+Safety commands (estop, land -e, stop) to bypass for obvious reasons
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from .config import PROJECT_ROOT
 
 
 class UsageError(Exception):
-    """Bad arguments; the message is shown to the user with the command's usage line."""
+    """Bad arguments; the message is shown to the user with the command usage line."""
 
 
 class Host:
-    """What the shell needs from the application. The Textual app implements this."""
+    """What the shell needs from the application. I needed to add ts because textual docs said so."""
 
     backend: DroneBackend
     executor: FlightExecutor
@@ -59,7 +59,7 @@ class Command:
 
 
 def split_args(tokens: list[str]) -> tuple[list[str], set[str]]:
-    """Positional arguments and ``-flags`` (``-30`` is a number, not a flag)."""
+    # Positional arguments and ``-flags`` (``-30`` is a number, not a flag).
     pos, flags = [], set()
     for t in tokens:
         if len(t) > 1 and t[0] == "-" and not t[1].isdigit() and t[1] != ".":
@@ -130,7 +130,7 @@ class Shell:
         return self.host.executor.submit(label, fn)
 
     def run_inline(self, line: str) -> None:
-        """Run one command to completion on the current (flight) thread; used by `source`."""
+        # Run one command to completion on the current thread; used by source.
         self._tls.inline = True
         try:
             self.run_line(line)
@@ -183,7 +183,7 @@ class Shell:
             self._log_failed = True
 
     def complete(self, text: str) -> str | None:
-        """Best single completion for the text typed so far (used by the input suggester)."""
+        # This is hella buggy, I need to fix the logic
         if not text or text.endswith("  "):
             return None
         parts = text.split(" ")
@@ -477,7 +477,7 @@ def h_toggle(sh: Shell, pos, flags) -> None:
 
 
 def h_source(sh: Shell, pos, flags) -> None:
-    """Run a text file of commands in order (flight steps queue behind each other)."""
+    # run a text file of commands in order
     if len(pos) != 1:
         raise UsageError("expected one script file")
     try:
@@ -500,7 +500,7 @@ def h_exit(sh: Shell, pos, flags) -> None:
     sh.host.request_exit(land_first=("f" not in flags and "now" not in flags))
 
 
-def _register_builtins(sh: Shell) -> None:
+def _register_builtins(sh: Shell) -> None: # This shit GENUINELY took forever to map out
     R = sh.register
     R(Command("help", h_help, "help [command]", "list commands, or explain one", "general", ("?", "h")))
     R(Command("clear", h_clear, "clear", "clear the console", "general", ("cls",)))
