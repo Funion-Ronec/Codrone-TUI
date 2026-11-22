@@ -1,6 +1,3 @@
-"""PILOT mode for the TUIs: held keys fly the drone, one-shot keys run shell commands, the HUD and
-the `pilot` command (including rebinding). Loaded by ``CodroneApp.on_mount`` like ``adc_ui``."""
-
 from __future__ import annotations
 
 import time
