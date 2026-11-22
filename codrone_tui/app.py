@@ -1,10 +1,13 @@
 """The Textual application shared by the CoDrone EDU TUI and the CoDrone Simulator TUI.
 
+please note that I was just refering to the textual documentation and I dont actually
+understand whats going on in-depth
+
 Threading model (important):
-    * the UI thread only draws and parses; it never calls a blocking drone method
-    * FlightExecutor runs queued commands/missions on one worker thread
-    * TelemetryPoller samples sensors on another
-    * both report back through ``App.ui()``, which hops onto the UI thread
+    - the UI thread only draws and parses; it never calls a blocking drone method
+    - FlightExecutor runs queued commands/missions on one worker thread
+    - TelemetryPoller samples sensors on another
+    - both report back through ``App.ui()``, which hops onto the UI thread
 """
 
 from __future__ import annotations
@@ -49,8 +52,8 @@ from .widgets.panels import (
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
+# Yeah I stole this from btop and rovr,
 THEMES = [
-    # EDU = cyan/amber, sim = violet/green. these can never look alike or someone gonna mistake the real drone for the sim
     Theme(name="codrone-edu", primary="#4cc9f0", secondary="#f72585", accent="#ffb703", success="#06d6a0",
           warning="#ffd166", error="#ef476f", foreground="#dbe7f0", background="#0a0e13", surface="#10161d",
           panel="#16202b", dark=True),
@@ -79,7 +82,7 @@ LAYOUTS = {
 
 
 class ShellCommandsProvider(Provider):
-    """Puts every shell command in the ctrl+p palette."""
+    # Puts every shell command in the ctrl+p palette
 
     async def discover(self) -> Hits:
         app = self.app
@@ -99,7 +102,9 @@ class ShellCommandsProvider(Provider):
 
 
 class _AppHost(Host):
-    """Adapter so the (UI-agnostic) Shell can drive the Textual app."""
+    # Adapter so the (UI-agnostic) Shell can drive the Textual app.
+    # That is just what the textual documentation say, I dont really know what it means
+    # but I trust it
 
     def __init__(self, app: "CodroneApp") -> None:
         self.app = app
@@ -214,7 +219,7 @@ class CodroneApp(App):
         self.pilot = None
 
     def ui(self, fn, *args) -> None:
-        """Run ``fn`` on the UI thread from any thread."""
+        # Run ``fn`` on the UI thread from any thread.
         if threading.get_ident() == self._ui_thread:
             fn(*args)
         elif self.is_running:
