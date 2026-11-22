@@ -1,4 +1,4 @@
-"""The CoDrone EDU TUI: real hardware over the USB controller."""
+# this is for the actual drone
 
 from __future__ import annotations
 
