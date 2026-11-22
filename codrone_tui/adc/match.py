@@ -1,5 +1,3 @@
-"""Solo Autonomous match state machine: 180 s clock, resets, three attempts, persistence."""
-
 from __future__ import annotations
 
 import json
@@ -15,9 +13,7 @@ DEFAULT_STORE = Path("logs") / "adc_attempts.json"
 
 
 class MatchError(RuntimeError):
-    """An illegal transition (starting a 4th attempt, finishing a match that is not running ...)."""
-
-
+    pass
 @dataclass(frozen=True)
 class AttemptResult:
     number: int
@@ -30,12 +26,6 @@ class AttemptResult:
 
 
 class MatchController:
-    """idle -> running -> finished, with an injectable clock so tests never sleep.
-
-    The clock keeps running through resets (manual 4.1.3). ``abort()`` throws the attempt away
-    without using it up; only ``finish()`` / expiry records one.
-    """
-
     def __init__(
         self,
         clock: Callable[[], float] = time.monotonic,
@@ -106,14 +96,12 @@ class MatchController:
         return self.scorecard.credit(key, t=self.elapsed, source=source)
 
     def reset_drone(self) -> int:
-        """Count a drone reset (4.1.3). The timer is untouched. Returns the reset count."""
         if self.state != "running":
             raise MatchError("no match is running")
         self.resets += 1
         return self.resets
 
     def tick(self) -> AttemptResult | None:
-        """Call regularly from the UI: ends the match when the clock hits zero."""
         if self.expired:
             return self._end(landing=None, expired=True)
         return None
@@ -124,14 +112,12 @@ class MatchController:
         return self._end(landing=landing, expired=False)
 
     def abort(self) -> None:
-        """Discard the running attempt; it does not count against the three."""
         if self.state == "running":
             self.state = "idle"
             self.scorecard = None
             self.resets = 0
 
     def new_event(self) -> None:
-        """Forget all attempts (start of a new competition event)."""
         self._attempts.clear()
         self.state = "idle"
         self.scorecard = None
@@ -176,7 +162,6 @@ class MatchController:
             return False
 
     def load(self) -> bool:
-        """Read saved attempts. A missing or corrupt file leaves the current state untouched."""
         if not self.store_path.exists():
             return False
         try:
