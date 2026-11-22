@@ -1,16 +1,3 @@
-"""CoDrone Simulator over the vendor ``codrone_simulator`` UDP link (127.0.0.1:5000).
-
-What is different from the real drone, and handled here:
-    * the library never learns whether the simulator is running -- UDP sends just vanish -- so
-      ``connect`` probes a range query and fails clearly if nothing answers
-    * its socket has no timeout, so any query would hang forever; we set one
-    * query replies are bare datagrams: concurrent queries (telemetry thread + a routine) would
-      steal each other's reply, so queries are serialised and stale datagrams are drained first
-    * moves return before the simulator finishes them, so we sleep for an *estimated* duration;
-      ``cm_per_s`` is a tunable guess, not a measured simulator constant
-    * no battery, position, attitude or flight-state read-back exists: position is dead-reckoned
-"""
-
 from __future__ import annotations
 
 import select
@@ -52,7 +39,6 @@ class SimBackend(DroneBackend):
         self._connected = False
 
     def connect(self, port: str | None = None) -> str:
-        """``port`` may be ``"host:port"`` to reach a simulator on another machine."""
         try:
             import codrone_simulator as lib
         except Exception as exc:  # noqa: BLE001
@@ -128,7 +114,6 @@ class SimBackend(DroneBackend):
             raise BackendError("drone is not flying -- `takeoff` first")
 
     def _query(self, message: str, size: int) -> bytes:
-        """Send a query and wait (briefly) for its datagram reply."""
         d = self._drone
         if d is None:
             raise BackendError("not connected")
@@ -170,7 +155,6 @@ class SimBackend(DroneBackend):
         self.pose.z = 0.0
 
     def emergency_stop(self) -> None:
-        """The simulator has no motor cut: the hardest stop it offers is an immediate land."""
         self.flying = False
         d = self._drone
         if d is None:
@@ -214,7 +198,6 @@ class SimBackend(DroneBackend):
         self.pose.apply_turn(deg)
 
     def go(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float) -> None:
-        """Raw sticks in the simulator's native directions. Does not update the dead-reckoned pose."""
         self._d.go(int(roll), int(pitch), int(yaw), int(throttle), float(seconds))
 
     def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
