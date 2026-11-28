@@ -18,6 +18,9 @@ from .base import (
 DEFAULT_ADDR = ("127.0.0.1", 5000)
 QUERY_TIMEOUT_S = 1.0
 DEFAULT_HOVER_CM = 100.0
+# The simulator answers 1000 cm when its ray hits nothing; the real sensor tops out around 2 m. Anything past this
+# is "no reading", never a height (it once told live mode the drone was 10 m up).
+RANGE_MAX_CM = 400.0
 SIM_YAW_SIGN = -1
 STICK_DEG_S = 120.0
 
@@ -27,6 +30,10 @@ class SimBackend(DroneBackend):
     title = "CoDrone Simulator"
     caps = frozenset({Cap.RANGE, Cap.VERTICAL, Cap.LED, Cap.BUZZER, Cap.GRAB, Cap.TELEPORT})
     stick_hz = 10.0
+
+    @property
+    def stick_cm_s(self) -> float:  # type: ignore[override]
+        return self.cm_per_s
 
     def __init__(self, verify: bool = True, cm_per_s: float = 80.0, vertical_cm_per_s: float = 60.0) -> None:
         super().__init__()
@@ -143,8 +150,8 @@ class SimBackend(DroneBackend):
         self.flying = True
         self.pose.x = self.pose.y = 0.0
         try:
-            z = self._float_query("get_bottom_range")
-            self.pose.z = z if z >= 0 else DEFAULT_HOVER_CM
+            z = _range(self._float_query("get_bottom_range"))
+            self.pose.z = DEFAULT_HOVER_CM if z is None else z
         except BackendError:
             self.pose.z = DEFAULT_HOVER_CM
 
@@ -235,7 +242,7 @@ class SimBackend(DroneBackend):
         front = self._float_query("get_front_range")
         bottom = self._float_query("get_bottom_range")
         valid = lambda v: None if v is None or v < 0 else round(v, 1)  # noqa: E731
-        front, bottom = valid(front), valid(bottom)
+        front, bottom = valid(front), _range(bottom)
         return Telemetry(
             flight_state="Flight" if self.flying else "Ready",
             front_range_cm=front,
@@ -248,3 +255,8 @@ class SimBackend(DroneBackend):
     def info(self) -> dict[str, str]:
         return {"backend": self.title, "link": f"{self._addr[0]}:{self._addr[1]}",
                 "pace": f"{self.cm_per_s:g} cm/s (estimate)"}
+
+
+def _range(v: float | None) -> float | None:
+    # a bottom reading that can be a height, or None
+    return None if v is None or v < 0 or v > RANGE_MAX_CM else round(v, 1)

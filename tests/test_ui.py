@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 
 import pytest
 from textual.command import CommandPalette
@@ -297,5 +298,62 @@ def test_help_command_in_app_lists_mission_commands(tmp_path):
             await type_line(pilot, "help")
             text = log_text(app)
             assert "mission list|run" in text and "teleport" in text and "flip" not in text
+
+    run(go())
+
+
+def test_bot_panel_follows_a_live_flight(tmp_path, monkeypatch):
+    from codrone_tui.bot.llm import KeyStore
+
+    class Scripted:
+        model = "scripted"
+
+        def __init__(self):
+            self.calls = 0
+
+        def chat_json(self, messages, schema):
+            import time
+            self.calls += 1
+            time.sleep(0.3)  # long enough for the panel to show the guidance being written
+            return {"summary": "Short hop, then land somewhere open.", "questions": [], "steps": [
+                {"op": "takeoff"}, {"op": "move", "direction": "forward", "distance_cm": 40}, {"op": "land_spot"}]}, {}
+
+    def panel_text(app):
+        from rich.console import Console
+
+        r = app.query_one("#bot-panel").rendered
+        if r is None:
+            return ""
+        con = Console(width=44, record=True, file=open(os.devnull, "w"))
+        con.print(r)
+        return con.export_text()
+
+    async def go():
+        app = make("sim", tmp_path, command_log=False)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause(0.3)
+            app.bot.keys = KeyStore(tmp_path / "keys.toml", env={})
+            model = Scripted()
+            app.bot.planner.client = model
+            panel = app.query_one("#bot-panel")
+            assert panel.display  # part of the full layout
+            await pilot.press("9")
+            assert not panel.display
+            await type_line(pilot, "layout bot")
+            assert panel.display and app.query_one("#telemetry-panel").display
+            await pilot.press("escape")
+            await pilot.press("9")  # hide it again: starting live must bring it back
+            await pilot.pause(0.4)
+            assert not panel.display
+
+            await wait_for(pilot, lambda: app.backend.connected)
+            await type_line(pilot, "live -y potter about a little and then put it down somewhere sensible")
+            assert await wait_for(pilot, lambda: panel.display and "writing the guidance" in panel_text(app), 3)
+            assert await wait_for(pilot, lambda: "DONE" in panel_text(app), 15)
+            text = panel_text(app)
+            assert "potter about" in text and "ahead 40" in text and "landspot" in text and "✓" in text
+            assert "motion creep" in text and model.calls == 1
+            await type_line(pilot, "llm provider anthropic")
+            assert await wait_for(pilot, lambda: "no API key" in panel_text(app), 3)
 
     run(go())

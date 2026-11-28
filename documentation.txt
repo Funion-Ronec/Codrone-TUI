@@ -28,7 +28,7 @@ LAYOUT  (ripped straight from btop and rovr)
   5 Map        top-down field, drone, trail   (+x forward = right, +y left = up)
   6 Score      Solo Autonomous scorecard + 180 s clock     7 Metadata   backend, firmware, session stats
   8 Pilot      keystroke HUD for PILOT mode: lit keys, stick bars, speed, tricks, bound commands
-  The layout adapts to the terminal size (auto). `p` cycles presets: auto, full, flight, pilot, mission, minimal, focus.
+  The layout adapts to the terminal size (auto). `p` cycles presets: auto, full, flight, bot, pilot, mission, minimal, focus.
 
 KEYS
 ----
@@ -38,7 +38,7 @@ KEYS
   ctrl+l   urgent land: drops everything queued, then lands
   esc      (NORMAL) soft stop: cancel queued / automatic moves, hover      (in the prompt: leave it)
   i  :  /  start typing        tab or ->  accept suggestion       up/down  history
-  1-8      show/hide panel     p  layout preset      t  cycle theme     ?  help     q  land + quit
+  1-9      show/hide panel     p  layout preset      t  cycle theme     ?  help     q  land + quit
   ctrl+p   command palette (every shell command, fuzzy searchable)
   f        PILOT mode (below)
 
@@ -169,6 +169,116 @@ changes to gameplay": the scoring table and field above are a snapshot. Rules ge
 manual - re-check before a competition, and update codrone_tui/adc/rules.py if the points change.
 
 
+BOT
+---
+The CoDrone EDU has ONE forward range sensor: a narrow beam that sees about 150 cm. The bot uses it to fly without hitting
+things, and turns sentences into flight plans that you read before anything flies.
+
+Flying around obstacles (EDU, simulator and --demo; these need the range sensor):
+    ahead <cm> [speed]        forward, but never closer than 30 cm to anything the sensor sees (stops and says why)
+    approach <cm> [max]       fly forward until something is <cm> away (20-140), e.g. `approach 40`
+    scan                      turn in place from -90 to +90 degrees and print what is ahead in each direction
+    nav <x> <y> [z]           fly to a field point (cm from the takeoff point), going around what is in the way: it maps
+    nav <element>             what the sensor sees, plans a path, and re-plans when something blocks it
+    face <deg>                turn to a heading (0 = the takeoff direction, 90 = right)
+    through <element>         a routine's through() with the obstacle guard: lines up, flies through, claims the points
+    landon pad|bullseye|cube  fly to the target and land on it
+    explore <seconds> [top]   wander: fly ahead until something is in the way (or a 40-120 cm leg ends), turn somewhere
+                              open, repeat; heads back inward near the geofence (3-300 s). With a top height
+                              (`explore 30 130`) it also changes altitude before most legs, between 40 cm and the top.
+                              Nothing looks UP, so climbs are only kept safe by max_alt_cm (set it below your ceiling,
+                              lights, shelves) and field.toml. Coming DOWN, it reads the bottom sensor first and stays
+                              30 cm above whatever is under it (a table, a box).
+    home                      back to the takeoff point around obstacles, facing the takeoff direction
+    landspot                  look around (4 directions); land if nothing is within 60 cm, else move away and look again
+    avoid on|off              give `mission run` the same guard: forward moves stop for obstacles and goto() goes around
+                              them (off by default; [bot] guard_missions = true turns it on at start)
+
+  How it decides: forward flight CREEPS ([bot] motion = "creep", the default). Instead of one "move 50 cm" command
+  that flies blind and then waits for the drone to settle (about a second each on a real EDU), it holds the stick
+  forward at about 25 cm/s and reads the sensor every 5 cm ([bot] creep_tick_cm, creep_cm_s), so a 100 cm move is 20
+  ticks. The moment something is within 30 cm, or the map shows something beside the path, the sticks centre and the
+  drone hovers: the move is cancelled, not finished blind. motion = "steps" brings back the old separate move commands
+  (a reading every 60 cm at most). What the sensor has seen goes on a 10 cm map together with the field.toml elements (arch legs and
+  frames are thin, so the beam can miss them). Before each nav leg the drone glances 20 degrees left and right, because up
+  close the beam is narrower than the drone; plan and live forward moves glance the same way first. Nothing looks up, down, sideways or back: up/down and sideways/backward moves
+  are flown blind, and a climb or descent into a known field element is refused.
+
+Plain-English plans:
+    ask take off, fly through the red arch, then the green keyhole, and land on the pad
+    plan                      show the last plan again
+    plan run [-y]             fly it (same path as `mission run`: preflight checks, and the confirmation on a real EDU)
+    plan save plans/lap.txt   keep it as a command script (`source plans/lap.txt` flies it again later)
+    plan clear
+    llm status | models | use <model>     check the model (and the API key), list models, switch model for this session
+
+  1. A built-in phrase parser handles simple wording instantly and offline: "forward 1 m", "turn left 45", "go to 200, 50",
+     "approach the wall to 40 cm", "do a 50 cm square", "through the red arch, then the green keyhole".
+  2. Anything else goes to a LOCAL language model through Ollama (default qwen3.5:9b). Its answer is forced into the plan
+     format (it can only use step types and element names that exist) and then checked. If a check fails, the model
+     gets one chance to fix it.
+  3. Every plan is flown in a simulation of field.toml first. You see the steps, warnings (blind moves, uncalibrated field,
+     longer than a match) and the simulated time. NOTHING flies until you type `plan run`.
+  The model never flies the drone. It only writes steps; the checks and the guard decide what actually flies.
+  Unclear or unsafe requests ("do a flip", "fly to the kitchen") come back as a question instead of a plan.
+  `ask -p ...` uses the phrase parser only. Apostrophes are fine (no quotes needed): ask don't go past the cube
+
+Live mode (the model writes the guidance once, then the flight algorithm flies it on its own):
+    live fly around in random directions avoiding the walls, don't just hover, after 20 s find a good spot and land
+    live -y ...               skip the real-drone confirmation (as `plan run -y`)
+    live stop                 stop it; the drone hovers (then `land`, or ctrl+l)
+  The model reads what you say as intent, not word-for-word, and turns it into a few steps for the algorithm, e.g.
+  the line above becomes `takeoff · explore 20 · landspot` ("...going up and down" adds a top height:
+  `explore 30 140`), and "find the box ahead, get within half a metre, come
+  back" becomes `takeoff · approach 50 · home · land`. Steps can be any plan step plus the behaviours explore, home
+  and landspot, which decide their own moves from the sensor. The guidance is checked and simulated like an `ask`
+  plan, printed, then flown straight away (through the same preflight and real-drone confirmation as `plan run`).
+  While it flies there are NO model calls: nothing waits on the model, and a slow or offline model can't stall the
+  drone mid-air. A forward move that is cancelled because something is in the way is marked ■ and the guidance
+  carries on with the next step; a step that really fails (no route, geofence, a crash) ends it, and the drone LANDS
+  unless you stopped it yourself. `plan run` flies the same guidance again.
+  The Bot panel (9, under Telemetry; `layout bot` gives it room) shows the model and key, "writing the guidance…",
+  then every step as it flies (✓ done, ▶ now, ■ cancelled for an obstacle, ✗ failed) and the algorithm's latest
+  events. Each flight is saved to logs/bot-live-*.jsonl: the goal, the guidance, and what happened step by step.
+
+Phone camera (watch a live flight from outside, review it afterwards):
+    camera http://192.168.1.50:8080/shot.jpg    set it (and grab one test frame into logs/camera-test-*.jpg)
+    camera test · camera off · camera           grab again · stop · show what's set
+  Phone setup: install IP Webcam (Android; on iPhone any app that serves a JPEG or MJPEG URL), start its server, put
+  the phone on the same Wi-Fi as this computer, and point it at the flying area from a corner, landscape, the whole
+  space in view. The app shows the address; add /shot.jpg (IP Webcam) or use the app's MJPEG stream URL.
+  During `live` a still is saved at the start of every step and every 2 s ([bot] camera_every_s) into a folder named
+  like the flight's log: logs/bot-live-<time>/001.jpg, 002.jpg ... Each step and frame in the .jsonl has the drone's
+  dead-reckoned position, so you (or Claude, reviewing a run) can compare where it thought it was with where it was.
+  The model never sees the pictures. A slow camera never holds the drone: a frame is skipped instead. [bot] camera_url
+  keeps it (don't put a camera password there; a user:password@ URL typed in the console is masked in the logs).
+
+Language model: local Ollama (default) or a hosted API with your key:
+    llm provider anthropic    or openai (also OpenRouter, Groq, LM Studio...: set [bot] api_url), ollama, off
+    llm key                   masked dialog; tick "remember" to keep it in ~/.config/codrone-tui/keys.toml (mode 600)
+    llm key clear             forget it        ·   or set ANTHROPIC_API_KEY / OPENAI_API_KEY before starting
+    llm use claude-sonnet-5-5 pick the model (anthropic default: claude-haiku-5-5, fast enough for live mode)
+  Keys never go into config.toml, the console, the command history or logs/. `llm key <key>` typed inline also works
+  and is masked, but the dialog is better. [bot] settings: llm, api_model, api_url, api_key_env, live_record,
+  camera_url, camera_timeout_s, camera_every_s, motion, creep_tick_cm, creep_cm_s, creep_brake_s.
+
+  Ollama, once per machine: install it, start `ollama serve` (or its service), then `ollama pull qwen3.5:9b`. On a slower
+  computer pick a smaller model (`llm use <model>`, or [bot] model in config.toml). Without Ollama, `ask` still
+  understands the simple phrases.
+
+  --demo flies in a small world: the field elements plus a crate at (150, 100), a post at (60, -110) and a wall at x = 510,
+  so `nav 300 100`, `approach 40` and `scan` have something to deal with. The built-in missions still fly clean.
+
+!! FIRST REAL FLIGHTS WITH THE BOT - nothing in it has flown a real drone yet !!
+  1. `status` with nothing in front, then with a box ~50 cm away. If "front" shows nothing for open space, keep
+     `none_is_clear = false` (the default: 25 cm steps, slow and careful). If it shows a big number, readings over
+     150 cm already count as clear and the steps get longer.
+  2. Open room, eye protection on: `takeoff`, `approach 60` toward a big box, `land`. It should stop about 60 cm away.
+  3. `ahead 200` toward the box: it should stop about 30 cm short (`margin_cm`).
+  4. `nav` around one box, then `ask` a short plan and `plan run` it. Keep ctrl+x (estop) under your finger.
+  Thin poles, glass, and dark or shiny surfaces are hard for any time-of-flight sensor. Never trust the guard with people.
+
+
 SIMULATOR NOTES
 ---------------
   * The vendor library cannot tell whether the simulator is running (UDP). `pair` therefore probes a range query and says
@@ -195,6 +305,9 @@ CONFIG  (optional config.toml next to the scripts; every key has a default)
     [sim]  cm_per_s = 80.0  vertical_cm_per_s = 60.0  verify = true
     [pilot] speed = 2   rate_hz = 20.0   hold = "auto"   ("repeat" = always guess from key repeats)
     [log]  commands = true                               (false = no command log file)
+    [bot]  model = "qwen3.5:9b"   ollama_url = "http://127.0.0.1:11434"   llm = "ollama"   ("off" = phrase parser only)
+           margin_cm = 30   sensor_max_cm = 150   none_is_clear = false   max_alt_cm = 150   geofence_cm = 600
+           side_look_deg = 20   field_obstacles = true   guard_missions = false     (all keys: codrone_tui/bot/settings.py)
 
 
 FILES
@@ -205,13 +318,20 @@ FILES
     adc-manual-v1.1.pdf       the game manual the autonomous section is built from
     codrone_tui/backend/    base (contract), edu, sim, mock, executor, poller
     codrone_tui/adc/        rules, match, field, routine, builtin, preflight   (no UI code: unit-tested alone)
-    codrone_tui/            app, commands, adc_ui, screens, config, cli, styles.tcss, widgets/
+    codrone_tui/bot/        settings, sensing, grid, navigator, context, world, procedure, phrases, ollama, planner
+                            (the bot; no UI code either)
+    codrone_tui/            app, commands, adc_ui, bot_ui, screens, config, cli, styles.tcss, widgets/
     field.toml  routines/  logs/               field layout, your routines, command logs (unless off) + attempt logs
     pilot_keys.toml                            your PILOT key bindings (created by `pilot bind` / `pilot run`)
-    tests/                                     python -m pytest -q   (178 tests, ~2 min; no hardware needed)
+    tests/                                     python -m pytest -q   (299 tests, ~1 min; no hardware or Ollama needed)
     docs/DEVELOPMENT.md                        developer notes (units, vendor quirks, tuning constants)
 
 SETUP FROM SCRATCH
 ------------------
     py -3.14 -m venv .venv
     .venv\Scripts\python.exe -m pip install -r requirements-dev.txt        (about 20 packages, ~110 MB)
+
+  Linux: python3 -m venv .venv && .venv/bin/pip install -r requirements.lock.txt   (or with uv:
+         uv venv && uv pip install -r requirements.lock.txt), then .venv/bin/python edu_tui.py --demo
+         The controller is a USB serial port: your user must be in `dialout` (Debian/Ubuntu) or `uucp` (Arch),
+         e.g. sudo usermod -aG dialout $USER, then log out and in again.

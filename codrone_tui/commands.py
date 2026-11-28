@@ -8,6 +8,7 @@ Safety commands (estop, land -e, stop) to bypass for obvious reasons
 
 from __future__ import annotations
 
+import re
 import shlex
 import threading
 import time
@@ -56,6 +57,31 @@ class Command:
     requires: Cap | None = None
     needs_link: bool = False
     flight: bool = False
+    raw: bool = False  # free text: the handler gets the rest of the line as one argument, no shell quoting
+
+
+_SECRET_LINE = re.compile(r"^(\s*llm\s+key\s+)(?!clear\s*$)(\S.*)$", re.I)
+
+
+_URL_LOGIN = re.compile(r"(\w+://)[^/\s@]+@")
+
+
+def redact(line: str) -> str:
+    # `llm key <key>` and a password in a URL (`camera http://me:pw@phone/...`) must not reach the console echo,
+    # the history or the command log
+    return _URL_LOGIN.sub(r"\1***@", _SECRET_LINE.sub(lambda m: m.group(1) + "********", line))
+
+
+def raw_args(rest: str) -> tuple[list[str], set[str]]:
+    # Leading ``-flags``, then everything else exactly as typed (so "don't" doesn't break shlex).
+    text, flags = rest.strip(), set()
+    while True:
+        m = re.match(r"-([A-Za-z][\w-]*)(?:\s+|$)", text)
+        if not m:
+            break
+        flags.add(m.group(1).lower())
+        text = text[m.end():]
+    return ([text] if text else []), flags
 
 
 def split_args(tokens: list[str]) -> tuple[list[str], set[str]]:
@@ -142,24 +168,30 @@ class Shell:
         if not line or line.startswith("#"):
             return
         if record:
-            self.history.append(line)
-            self._log(line)
-        try:
-            tokens = shlex.split(line)
-        except ValueError as exc:
-            self.out(f"parse error: {exc}", "error")
-            return
-        cmd = self.lookup(tokens[0])
-        if cmd is None:
-            self.out(f"unknown command '{tokens[0]}' -- type `help`", "error")
-            return
+            shown = redact(line)
+            self.history.append(shown)
+            self._log(shown)
+        head, *rest = line.split(None, 1)
+        cmd = self.lookup(head)
+        if cmd is not None and cmd.raw:
+            pos, flags = raw_args(rest[0] if rest else "")
+        else:
+            try:
+                tokens = shlex.split(line)
+            except ValueError as exc:
+                self.out(f"parse error: {exc}", "error")
+                return
+            cmd = self.lookup(tokens[0])
+            if cmd is None:
+                self.out(f"unknown command '{tokens[0]}' -- type `help`", "error")
+                return
+            pos, flags = split_args(tokens[1:])
         if not self.available(cmd):
             self.out(f"`{cmd.name}` is not available on {self.backend.title}", "warn")
             return
         if cmd.needs_link and not self.backend.connected:
             self.out("not connected -- run `pair` first", "warn")
             return
-        pos, flags = split_args(tokens[1:])
         try:
             cmd.handler(self, pos, flags)
         except UsageError as exc:

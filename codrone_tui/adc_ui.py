@@ -61,6 +61,7 @@ class AdcController:
         self.running = False
         self.current_name = ""
         self.confirmed: set[str] = set()
+        self.context_factory = RoutineContext  # bot_ui swaps in an obstacle-guarded context (`avoid on`)
         self.min_battery = int(app.cfg.get("edu", {}).get("min_battery", DEFAULT_MIN_BATTERY))
         self.reload_routines()
         self._set_map_markers()
@@ -157,12 +158,17 @@ class AdcController:
                 + (f"  -- {r.detail}" if r.status != "pass" and r.detail else "") for r in results]
 
     def start_mission(self, name: str, in_match: bool, skip_confirm: bool) -> None:
+        if self.running:
+            raise UsageError("a mission is already running -- `mission stop` first")
+        self.start_routine(self.find(name), in_match, skip_confirm)
+
+    def start_routine(self, r: Routine, in_match: bool, skip_confirm: bool, context_factory=None) -> None:
         # I feel like there was a significantly easier way to write this rather than
         # having a bunch of "if" statment but walahi it works it works
+        # (bot_ui also lands here with a routine compiled from an `ask` plan)
         app, b = self.app, self.app.backend
         if self.running:
             raise UsageError("a mission is already running -- `mission stop` first")
-        r = self.find(name)
         if not r.ok:
             raise UsageError(f"{r.name}: {r.error}")
         if not b.connected:
@@ -191,12 +197,14 @@ class AdcController:
                 body += ["", "[b]the field layout is NOT calibrated[/b] -- positions are placeholders."]
             body += ["", "Run = you confirm every ☐ item."]
             app.push_screen(ConfirmScreen("Start autonomous flight", body),
-                            lambda ok: self._launch(r, in_match, results) if ok else app.console_write("cancelled", "dim"))
+                            lambda ok: self._launch(r, in_match, results, context_factory) if ok
+                            else app.console_write("cancelled", "dim"))
         else:
-            self._launch(r, in_match, results)
+            self._launch(r, in_match, results, context_factory)
 
-    def _launch(self, r: Routine, in_match: bool, results) -> None:
+    def _launch(self, r: Routine, in_match: bool, results, context_factory=None) -> None:
         app, b = self.app, self.app.backend
+        make_context = context_factory or self.context_factory
         self.confirmed |= {x.item.key for x in results if x.status == "todo"}
         if in_match:
             try:
@@ -217,7 +225,7 @@ class AdcController:
             app.ui(app.console_write, f"  {msg}", "dim")
 
         def work() -> None:
-            ctx = RoutineContext(
+            ctx = make_context(
                 b, app.executor,
                 scorecard=None if in_match else self.practice,
                 field=self.field,

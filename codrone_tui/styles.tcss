@@ -16,8 +16,17 @@ Screen {
     min-width: 40;
 }
 
-#telemetry-panel {
+#right-col {
     width: 46;
+}
+
+#telemetry-panel {
+    height: 1fr;
+}
+
+#bot-panel {
+    height: 1fr;
+    min-height: 10;
 }
 
 #bottom {

@@ -10,6 +10,18 @@ from .backend import MockBackend
 from .config import load_config
 
 
+def demo_backend(flavor: str, field: str | None = None) -> MockBackend:
+    # --demo: a mock drone in a small world (the field elements plus a crate, a post and a far wall), so the range
+    # sensor sees something and `nav` / `approach` have work to do. Falls back to the plain mock.
+    try:
+        from .adc.field import load_field
+        from .bot.world import WorldMock, demo_world
+
+        return WorldMock(flavor, demo_world(load_field(Path(field) if field else None)))
+    except Exception:  # noqa: BLE001
+        return MockBackend(flavor)
+
+
 def build_app(kind: str, args: argparse.Namespace):
     cfg = load_config()
     demo = bool(args.demo)
@@ -17,7 +29,7 @@ def build_app(kind: str, args: argparse.Namespace):
         from .edu_app import EduApp as App
 
         if demo:
-            backend = MockBackend("edu")
+            backend = demo_backend("edu", args.field)
         else:
             from .backend.edu import EduBackend
 
@@ -26,7 +38,7 @@ def build_app(kind: str, args: argparse.Namespace):
         from .sim_app import SimApp as App
 
         if demo:
-            backend = MockBackend("sim")
+            backend = demo_backend("sim", args.field)
         else:
             from .backend.sim import SimBackend
 
