@@ -24,16 +24,17 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.theme import Theme
 from textual.widgets import Footer, Input
 
 from . import __version__
 from .backend import BackendError, DroneBackend, FlightExecutor, Job, Telemetry, TelemetryPoller
 from .backend.edu import find_controller_ports
-from .commands import Host, Shell
+from .commands import Host, Shell, redact
 from .config import PROJECT_ROOT, load_config
 from .screens import ConfirmScreen, HelpScreen
+from .widgets.bot import BotPanel
 from .widgets.graph import palette
 from .widgets.pilot import PilotPanel
 from .widgets.score import ScorePanel
@@ -69,11 +70,12 @@ CYCLE_AFTER_OWN = ["btop", "catppuccin-mocha", "tokyo-night", "gruvbox", "nord",
 PANELS = {
     "console": ("console-panel", "1"), "sidebar": ("sidebar", "2"), "telemetry": ("telemetry-panel", "3"),
     "processes": ("proc-panel", "4"), "map": ("map-panel", "5"), "score": ("score-panel", "6"),
-    "meta": ("meta-panel", "7"), "pilot": ("pilot-panel", "8"),
+    "meta": ("meta-panel", "7"), "pilot": ("pilot-panel", "8"), "bot": ("bot-panel", "9"),
 }
 LAYOUTS = {
-    "full": {"console", "sidebar", "telemetry", "processes", "map", "score", "meta", "pilot"},
-    "flight": {"console", "telemetry", "processes", "map"},
+    "full": {"console", "sidebar", "telemetry", "processes", "map", "score", "meta", "pilot", "bot"},
+    "flight": {"console", "telemetry", "processes", "map", "bot"},
+    "bot": {"console", "sidebar", "telemetry", "bot", "processes", "map"},
     "pilot": {"console", "telemetry", "map", "pilot"},
     "mission": {"console", "processes", "map", "score"},
     "minimal": {"console", "telemetry"},
@@ -171,6 +173,7 @@ class CodroneApp(App):
         Binding("6", "toggle('score')", "", show=False),
         Binding("7", "toggle('meta')", "", show=False),
         Binding("8", "toggle('pilot')", "", show=False),
+        Binding("9", "toggle('bot')", "", show=False),
         Binding("p", "cycle_layout", "layout"),
         Binding("t", "cycle_theme", "theme"),
         Binding("question_mark", "help", "help", key_display="?"),
@@ -217,6 +220,7 @@ class CodroneApp(App):
         self.shell = Shell(_AppHost(self), log_enabled=command_log)
         self.adc = None
         self.pilot = None
+        self.bot = None
 
     def ui(self, fn, *args) -> None:
         # Run ``fn`` on the UI thread from any thread.
@@ -253,7 +257,9 @@ class CodroneApp(App):
         with Horizontal(id="main"):
             yield SidebarPanel(id="sidebar")
             yield ConsolePanel(self.shell, id="console-panel")
-            yield TelemetryPanel(self.KIND, id="telemetry-panel")
+            with Vertical(id="right-col"):
+                yield TelemetryPanel(self.KIND, id="telemetry-panel")
+                yield BotPanel(id="bot-panel")
         with Horizontal(id="bottom"):
             yield ProcessesPanel(id="proc-panel")
             yield MapPanel(id="map-panel")
@@ -286,6 +292,14 @@ class CodroneApp(App):
             pilot_ui.attach(self)
         except Exception as exc:  # noqa: BLE001
             self.console_write(f"PILOT mode unavailable: {type(exc).__name__}: {exc}", "warn")
+        try:
+            from . import bot_ui
+
+            bot_ui.attach(self)
+            self.bot.on_live_start = lambda: self.ui(self._show_bot_panel)
+            self.refresh_sidebar()
+        except Exception as exc:  # noqa: BLE001
+            self.console_write(f"bot features unavailable: {type(exc).__name__}: {exc}", "warn")
 
         self.apply_layout(self._layout)
         self.set_interval(0.25, self._tick)
@@ -330,6 +344,8 @@ class CodroneApp(App):
         sections = self.quick_sections()
         if self.adc is not None:
             sections += self.adc.sidebar_sections()
+        if self.bot is not None:
+            sections += self.bot.sidebar_sections()
         return sections
 
     def refresh_sidebar(self) -> None:
@@ -361,7 +377,7 @@ class CodroneApp(App):
         if not line:
             return
         self.commands_run += 1
-        self.console_write(f"❯ {line}", "cmd")
+        self.console_write(f"❯ {redact(line)}", "cmd")
         self.shell.run_line(line)
 
     def on_cmd_input_leave(self, _msg: CmdInput.Leave) -> None:
@@ -483,6 +499,13 @@ class CodroneApp(App):
 
         if self.adc is not None:
             self.adc.tick()
+        if self.bot is not None:
+            try:
+                bp = self.query_one("#bot-panel", BotPanel)
+                if bp.display:
+                    bp.show(self.bot.panel_state())
+            except Exception:  # noqa: BLE001
+                pass
         try:
             self.query_one("#proc-panel", ProcessesPanel).show(self.executor)
             session = {"uptime": f"{up // 60}m{up % 60:02d}s", "commands": str(self.commands_run),
@@ -544,7 +567,7 @@ class CodroneApp(App):
 
     def toggle_panel(self, name: str) -> None:
         name = {"log": "console", "side": "sidebar", "telem": "telemetry", "procs": "processes",
-                "metadata": "meta", "match": "score", "hud": "pilot", "keys": "pilot"}.get(name.lower(), name.lower())
+                "metadata": "meta", "match": "score", "hud": "pilot", "keys": "pilot", "ai": "bot", "live": "bot"}.get(name.lower(), name.lower())
         if name not in PANELS:
             self.console_write(f"panels: {', '.join(PANELS)}", "error")
             return
@@ -577,7 +600,15 @@ class CodroneApp(App):
                 w_.display = pname in show
         self._sync_rows()
 
+    def _show_bot_panel(self) -> None:
+        w = self.panel_widget("bot")
+        if w is not None and not w.display:
+            w.display = True
+            self._sync_rows()
+
     def _sync_rows(self) -> None:
+        right = self.query_one("#right-col")
+        right.display = any(c.display for c in right.children)
         bottom = self.query_one("#bottom")
         bottom.display = any(c.display for c in bottom.children)
         main = self.query_one("#main")

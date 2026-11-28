@@ -102,7 +102,7 @@ How it works:
 ## Commands and scripts
 
 - `Host.out` kinds are `info`, `ok`, `warn`, `error`, `dim`, and `cmd`.
-- `Command.requires` is the capability the backend must have. `needs_link` refuses the command when not connected. `flight` is informational and means the handler queues work on the executor.
+- `Command.requires` is the capability the backend must have. `needs_link` refuses the command when not connected. `flight` is informational and means the handler queues work on the executor. `raw` hands the handler the rest of the line as one argument, after any leading `-flags`, without shell parsing (for free text such as `ask`).
 - `land` queues in order like any other command. `land -e` is the urgent form: it drops everything planned, stops a running mission between steps, then lands.
 - A script runs as one queued job, and each line executes in place. This keeps instant commands such as `echo` and `status` in order with flight commands. `stop` and `land` cancel the rest of the script.
 - `LOG_DIR` is absolute, so logs land in the project wherever the app was launched from.
@@ -188,3 +188,58 @@ The solo field (manual Figure 3.2.2) is an L: two 96" x 42" mats end to end alon
 - `manual_ref` is the manual section, or `""` for a TUI sanity check rather than a rule.
 - `auto` is true when an item is verified from telemetry, and false when a person must confirm it.
 - `status` is `pass`, `fail`, or `todo`.
+
+## Bot
+
+`codrone_tui/bot/` has no UI code. `bot_ui.py` connects it to the shell and the app, the same way `adc_ui.py` does. The bot was written with Claude Code.
+
+| Module | What it does |
+|---|---|
+| `settings.py` | `BotSettings` holds every tunable. `[bot]` in config.toml overrides them; a bad value keeps its default and is reported on startup |
+| `sensing.py` | `read_front` takes the median of `samples` front readings and sorts it into `hit`, `clear` (past `sensor_max_cm`) or `unknown` (no reading) |
+| `grid.py` | 10 cm occupancy grid (sensor hits with a confidence count, plus field.toml cells) and A* over hard and soft zones |
+| `navigator.py` | guarded `forward`, `approach`, `scan`, and `goto` (route, glance to the sides, fly, re-route when blocked) |
+| `context.py` | `BotContext(RoutineContext)`: guarded forward moves and an obstacle-aware `goto`, so `through` and `land_on` get both |
+| `world.py` | boxes with a height range, `element_boxes` (rough solid parts of each ADC element), `WorldMock` (ray-cast range sensor, crashes) |
+| `procedure.py` | plan steps: normalising, checks, the JSON schema for the model, dry runs, compiling a plan into a `Routine` |
+| `phrases.py` | the offline phrase parser |
+| `ollama.py`, `planner.py` | the Ollama client (standard library only) and the text-to-plan pipeline |
+| `llm.py` | hosted providers (`AnthropicClient`, `OpenAIClient` for any OpenAI-compatible server), `KeyStore`, `make_client` |
+| `camera.py` | `Camera` (snapshot or first MJPEG frame, basic auth from the URL) and `FrameRecorder` (one background thread; `grab` skips while busy, never blocks the loop) |
+| `behaviours.py` | the algorithm's behaviours a plan step can ask for: `explore` (random legs, turn somewhere open, inward near the geofence; with `z_cm`/`top_cm` also `change_height` between legs), `home`, `land_spot` |
+| `guided.py` | `GuidedRun`: live mode's flight of the model's guidance, its progress for the panel, the JSONL record and camera stills |
+
+The Bot panel (`widgets/bot.py`, hotkey 9) shares the right column with Telemetry. Each tick the app passes it `BotController.panel_state()`, a dict of plain values. That dict reads `GuidedRun`'s progress attributes (`phase`, `status`, `current`, `events`, `reason`), which the flight thread sets one at a time. It also caches the API key lookup for 2 s, so the panel doesn't read keys.toml four times a second. The panel redraws only when the dict changes.
+
+Safety rules, and why they exist:
+
+- Forward flight creeps (`motion = "creep"`): `Navigator._creep` holds the pitch stick at `creep_cm_s` (scaled by the backend's `stick_cm_s`) and takes one single-sample reading every `creep_tick_cm`. The time a reading takes is counted as flown on real backends (`realtime`), and mocks scale their waits through `stick_time` (the dry run's virtual world adds it to its clock). The `finally` always centres the sticks, then waits `creep_brake_s`. The corridor look-ahead is one margin past the tick, but never past the end of the move, or a short `nav` leg ending beside something would never finish.
+- With `motion = "steps"`, a forward step is never longer than the free space ahead minus `margin_cm`, and is re-measured every `max_step_cm`. With no reading at all, the step is `unknown_step_cm` unless `none_is_clear` is set.
+- The beam narrows as the drone closes in, so something seen at its edge can drop out of view while it is still in the way. `forward()` and `approach()` remember the closest hit of the current leg and never fly past it.
+- Up close the beam is narrower than the drone. Before each `goto` leg the navigator glances `side_look_deg` to both sides, and re-routes if the map shows anything within the drone's width of the leg. `BotContext._move` does the same for plain forward moves (a real per-move flight hit a crate's corner the beam slid past). `through` passes skip both (`BotContext._in_gate`), because the gate itself is on the map.
+- Nothing looks up, and the front sensor doesn't look down. `goto` climbs first and descends last, and `vertical_blocker` refuses a climb or descent into a known field element. `behaviours.change_height` (explore's height changes) also reads the bottom sensor before coming down and stays `BELOW_CLEAR_CM` above what it sees. That relies on the bottom sensor's cone covering the drone's width; `WorldMock` models it as `BOTTOM_CONE_DEG` = 25 (a guess, to check on a real EDU), and also crashes on vertical moves into a box. A sweep of 120 one-minute height-changing explores (with a table, shelf and stool) found no crash; with a point-like bottom sensor one came down on a table edge.
+- A hit marks the whole arc of the beam (`cone_deg`) at that distance. Each reading that sees past a cell lowers its count, so stale hits fade. The hard zone is hits and field cells grown by `drone_radius_cm`, and is never entered. The soft zone is hits grown by `margin_cm` and field cells grown by `drone_radius_cm + prior_clearance_cm`; flying through it costs `SOFT_COST` per cell.
+- `BotContext.goto` turns back to the heading it started with, because `RoutineContext.through` assumes `goto` never turns (the original strafes).
+- The model only writes steps. Its reply is constrained by `plan_schema` (Ollama `format`), checked by `validate_plan`, flown in a world built from field.toml by `dry_run_plan`, then shown. Only `plan run` flies it, through `AdcController.start_routine`, which brings the preflight and the real-drone confirmation. A failed check or dry run is sent back to the model once.
+- Live mode (`live <goal>`) asks the model once. `TextPlanner.plan` turns the goal into guidance (plan steps, which may include the behaviours), checked and simulated like `ask`; if it is runnable, `GuidedRun.fly` flies it through `start_routine` (started on the UI thread via `run_ui`, because the confirmation is a screen). There are no model calls while flying.
+- The sim backend's bottom range reads 1000 cm when its ray hits nothing. `sim._range` treats anything above `RANGE_MAX_CM` as no reading, so `takeoff` falls back to `DEFAULT_HOVER_CM` instead of reporting the drone 10 m up.
+- With `camera_url` set, `GuidedRun` saves a still at the start of each step and every `camera_every_s` (a small thread) into `logs/<record stem>/`; the record's header names the folder, and each step and frame entry has its `frame` and the dead-reckoned pose. Camera failures are reported once each and never end a flight.
+- How a live flight ends: every step done (the drone is wherever the guidance left it), or a step fails (`NavError` other than `Blocked`, a crash, a `RoutineError`), and then it lands unless the drone is already down. A `Blocked` forward move is the guard working: the step is marked `stopped` and the next step runs. An operator stop (`Aborted`) never lands: esc, ctrl+l and ctrl+x already decided.
+- API keys never go into config.toml (it sits in the project folder). `KeyStore` looks in the session first, then the provider's environment variable, then `keys.toml` in the user config folder, written with mode 0600 through a temp file. `commands.redact` masks `llm key <key>` before the console echo, the history and the command log. `check_api_url` refuses to send a key over plain http except to localhost, and the clients' `repr` leaves the key out.
+- `ask` is a `raw` command: `Shell.run_line` passes it the rest of the line without shell parsing, so apostrophes work.
+
+Geometry guesses in `element_boxes`. The manual gives the openings, not the frames:
+
+- arch: two 8 cm legs just outside the opening, up to the opening's height.
+- keyhole: a 15 cm ring band on each side of the opening, and an 8 cm stand under the centre of the ring.
+- cube: four 4 cm corner posts and a 4 cm top.
+- tunnel: four 3 cm walls of an upright tube from `z - height` up to `z` (the depth `_through_vertical` assumes), so the drone comes out underneath.
+- mini keyholes and pads: none.
+
+Tests:
+
+- `tests/test_bot_navigation.py` includes 20 random cluttered worlds where the drone may give up but must never crash. A one-off sweep of 1,000 more worlds (3 to 14 boxes) found no crash.
+- `tests/test_bot_plans.py` uses a fake Ollama server (`FakeOllama` in `conftest.py`), so no test needs a real model.
+- `tests/test_bot_camera.py` runs a fake camera (snapshot, MJPEG stream, HTML page, slow answers).
+- `tests/test_bot_live.py` covers creep (a reading every 5 cm, an obstacle that appears mid-move), the behaviours in a virtual-clock world, guided runs, the real crash spot, and the hosted clients with a fake Anthropic and OpenAI server (`FakeApi`). A one-off sweep of 60 one-minute `explore` + `land_spot` flights (demo world and a closed room) found no crash.
+- None of this has flown a real drone yet. Two things are still unknown: the EDU's front reading when nothing is in range, and its real beam width. documentation.txt has the first-flight checklist.

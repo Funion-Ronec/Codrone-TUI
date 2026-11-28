@@ -107,6 +107,8 @@ class DroneBackend(abc.ABC):
     title: str = "Drone"
     caps: frozenset[Cap] = frozenset()
     stick_hz: float = 20.0
+    realtime: bool = True  # False for mocks: their flying time isn't wall-clock time
+    stick_cm_s: float = 100.0  # estimated speed at full forward stick (creep and dead reckoning use it)
 
     def __init__(self) -> None:
         self.pose = Pose()
@@ -152,6 +154,10 @@ class DroneBackend(abc.ABC):
 
     def stick(self, roll: int, pitch: int, yaw: int, throttle: int, hold_s: float) -> None:
         raise NotSupported(f"live stick control is not available on {self.title}")
+
+    def stick_time(self, seconds: float) -> float:
+        # how long to really wait while the sticks fly for `seconds` (mocks run faster than life)
+        return seconds
 
     def _drift(self, roll: int, pitch: int, yaw: int, throttle: int, seconds: float,
                cm_s: float, deg_s: float) -> None:

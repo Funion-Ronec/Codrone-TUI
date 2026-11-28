@@ -62,6 +62,7 @@ def find_controller_ports() -> list[tuple[str, str, bool]]:
 class EduBackend(DroneBackend):
     kind = "edu"
     title = "CoDrone EDU"
+    stick_cm_s = STICK_CM_S
     caps = frozenset(
         {Cap.TELEMETRY, Cap.POSITION, Cap.RANGE, Cap.VERTICAL, Cap.FLIP, Cap.SHAPES, Cap.LED,
          Cap.BUZZER, Cap.ESTOP, Cap.COLOR, Cap.TRIM}

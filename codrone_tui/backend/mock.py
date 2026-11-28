@@ -28,6 +28,15 @@ WALL_X_CM = 450.0
 class MockBackend(DroneBackend):
     kind = "mock"
 
+    realtime = False
+
+    def stick_time(self, seconds: float) -> float:
+        return seconds * self.time_scale
+
+    @property
+    def stick_cm_s(self) -> float:  # type: ignore[override]
+        return self.speed_cm_s
+
     def __init__(self, flavor: str = "edu", time_scale: float = 0.02, speed_cm_s: float = 80.0) -> None:
         super().__init__()
         if flavor not in ("edu", "sim"):
